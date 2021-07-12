@@ -1,0 +1,4 @@
+.*.swp
+.swp
+node_modules
+src/config.lson
