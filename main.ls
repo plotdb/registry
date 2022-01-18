@@ -1,4 +1,4 @@
-require! <[express path colors]>
+require! <[express path @plotdb/colors]>
 
 server = do
   init: (opt={}) ->
