@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+rm -rf dist
+mkdir -p dist
+
+echo "build src/provider.ls -> dist/index.js ..."
+./node_modules/.bin/lsc -cp --no-header src/provider.ls > dist/index.js
+
+echo "minifying index.js ..."
+./node_modules/.bin/uglifyjs dist/index.js -m -c > dist/index.min.js
+
+echo "Copy dist/ to web/ ..."
+rm -rf web/static/assets/lib/@plotdb/registry/dev/
+mkdir -p web/static/assets/lib/@plotdb/registry/dev/
+cp -R dist/* web/static/assets/lib/@plotdb/registry/dev/
+echo "done."
+
+
