@@ -3,6 +3,22 @@
 `@plotdb/registry` is a definition and tool for how modules are managed. 
 
 
+## Registry Provider Specification
+
+Registry providers are used to access a requested resource which is defined by its `name`, `version`, `path` and optionally `type`.
+
+A registry provider can be either following format:
+ - string: indicate a root path for a requested resource
+ - function: return an URL for a requested resource when called
+ - object: described below
+
+A registry provider object should contain following fields:
+
+ - `url({name, version, path})`: for a given resource, return an URL string pointing to it.
+ - `fetch({name, version, path})`: for a given resource, return a resource object for it with following fields:
+   - `version`: exact version of the returned content for the requested resource.
+   - `content`: content of the requested resource
+
 
 ## Module Naming
 
