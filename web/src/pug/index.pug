@@ -1,0 +1,15 @@
+doctype html
+html
+  head
+    +css([
+      {name: "bootstrap", path: "css/bootstrap.min.css"}
+    ])
+  body
+    +script([
+      {name: "proxise"},
+      {name: "@loadingio/debounce.js", path: "debounce.min.js"},
+      {name: "@plotdb/csscope"},
+      {name: "@plotdb/rescope"},
+      {name: "@plotdb/block"}
+    ])
+    script(type="module"): include:lsc index.ls
