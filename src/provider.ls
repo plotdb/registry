@@ -11,11 +11,11 @@ registry =
   unpkg:
     url: ({name, version, path}) ->
       "https://unpkg.com/#{name}#{version and "@#version" or ''}#{path and "/#path" or ''}"
-    fetch: ({name, version, path}) ->
-      fetch @url(o)
+    fetch: (o = {}) ->
+      fetch @url o
         .then (r) ->
           v = (/^https:\/\/unpkg.com\/([^@]+)@([^/]+)\//.exec(r.url) or []).2
-          r.text!then -> {version: v or version, content: it}
+          r.text!then -> {version: v or o.version, content: it}
 
 if module? => module.exports = registry
 else if window? => window.registry = registry
