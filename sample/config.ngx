@@ -1,0 +1,36 @@
+upstream registry_api {
+  server 127.0.0.1:9900;
+}
+server {
+  listen 80;
+  server_name registry.loco;
+
+  location ~ ^/ilib/(.*)$ {
+    internal;
+    root /var/lib/cdn/cache/;
+    if (-f $request_filename.404) {
+      return 404 "";
+      break;
+    }
+    try_files /lib/$1 /lib/$1/lib/index.html /$1/index.min.js =404;
+  }
+
+  location ~ ^/lib/(.*)$ {
+    root /var/lib/cdn/cache/;
+    if (-f $request_filename.404) {
+      return 404 "";
+      break;
+    }
+    try_files /lib/$1 /lib/$1/index.html /lib/$1/index.min.js @apiserver;
+  }
+
+  location @apiserver {
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-NginX-Proxy true;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_pass http://registry_api;
+  }
+
+}
