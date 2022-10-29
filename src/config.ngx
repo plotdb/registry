@@ -1,0 +1,27 @@
+location ~ ^/!{internal}/(.*)$ {
+  internal;
+  root !{root};
+  if (-f $request_filename.404) {
+    return 404 "";
+    break;
+  }
+  try_files /!{pub}/$1 /!{pub}/$1/index.html /$1/index.min.js =404;
+}
+
+location ~ ^/!{pub}/(.*)$ {
+  root !{root};
+  if (-f $request_filename.404) {
+    return 404 "";
+    break;
+  }
+  try_files /!{pub}/$1 /!{pub}/$1/index.html /!{pub}/$1/index.min.js @registry_backend;
+}
+
+location @registry_backend {
+  proxy_set_header X-Real-IP $remote_addr;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header Host $http_host;
+  proxy_set_header X-NginX-Proxy true;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_pass http://!{upstream};
+}
