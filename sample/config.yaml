@@ -1,4 +1,4 @@
 internal: ilib
 pub: lib
-root: /var/lib/cache/
+root: /var/lib/cdn/cache/
 upstream: apiserver
