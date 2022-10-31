@@ -1,27 +1,27 @@
 require! <[fs fs-extra path @plotdb/block lderror]>
 
 handle = ({provider, id, root}) ->
+  p404 = path.join(root, path.resolve(path.join(\/, id)).substring(1)) + ".404"
+  p = path.join(root, path.resolve(path.join(\/, id)).substring(1))
+  dir = path.dirname p
+  verfile = path.join(dir, \.version)
   Promise.resolve!
+    .then ->
+      if !(p and dir) => return lderror 400
+      fs-extra.ensure-dir dir
     .then ->
       if !/^[-:a-zA-Z0-9@./]+$/.exec(id) => return lderror.reject 404
       ids = id.split(\/)
-      if ids.length > 3 =>
-        name = "#{ids.0}/#{ids.1}"
-        version = ids.2
-        p = ids.slice(3).join(\/)
+      obj = if ids.length > 3 =>
+        name: "#{ids.0}/#{ids.1}"
+        version: ids.2
+        path: ids.slice(3).join(\/)
       else
-        name = ids.0
-        version = ids.1
-        p = ids.slice(2).join(\/)
-      if /:/.exec(name) => [ns, name] = name.split(':')
-      if !(name and version and path) => return lderror.reject 404
-      obj = {ns, name, version, path: p}
-      p404 = path.join(root, path.resolve(path.join(\/, id)).substring(1)) + ".404"
-      p = path.join(root, path.resolve(path.join(\/, id)).substring(1))
-      if !p => return lderror 400
-      dir = path.dirname p
-      verfile = path.join(dir, \.version)
-      fs-extra.ensure-dir-sync dir
+        name: ids.0
+        version: ids.1
+        path: ids.slice(2).join(\/)
+      if /:/.exec(obj.name) => [obj.ns, obj.name] = obj.name.split(':')
+      if !(obj.name and obj.version and obj.path) => return lderror.reject 404
       provider.fetch obj
         .then ({version, content}) ->
           if fs.exists-sync verfile =>
@@ -32,9 +32,9 @@ handle = ({provider, id, root}) ->
           fs.write-file-sync p, content
           fs.write-file-sync verfile, version
           return content
-        .catch ->
-          fs.write-file-sync p404, '404'
-          lderror.reject 404
+    .catch ->
+      fs.write-file-sync p404, '404'
+      lderror.reject 404
 
 route = ({provider, root}) ->
   if !root.pub.endsWith \/ => root.pub = "#{root.pub}/"
