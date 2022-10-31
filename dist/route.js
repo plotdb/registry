@@ -6,24 +6,24 @@
   block = require('@plotdb/block');
   lderror = require('lderror');
   handle = function(arg$){
-    var provider, id, root, p404, p, dir, verfile;
+    var provider, id, root, paths, obj;
     provider = arg$.provider, id = arg$.id, root = arg$.root;
-    p404 = path.join(root, path.resolve(path.join('/', id)).substring(1)) + ".404";
-    p = path.join(root, path.resolve(path.join('/', id)).substring(1));
-    dir = path.dirname(p);
-    verfile = path.join(dir, '.version');
+    paths = {};
+    obj = {};
+    id = path.resolve(path.join('/', id)).substring(1);
     return Promise.resolve().then(function(){
-      if (!(p && dir)) {
+      var ids, ref$;
+      paths[404] = path.join(root, id) + ".404";
+      paths.full = path.join(root, id);
+      paths.dir = path.dirname(paths.full);
+      if (!(paths.full && paths.dir)) {
         return lderror(400);
       }
-      return fsExtra.ensureDir(dir);
-    }).then(function(){
-      var ids, obj, ref$;
-      if (!/^[-:a-zA-Z0-9@./]+$/.exec(id)) {
+      if (!/^[-_a-zA-Z0-9@./]+$/.exec(id)) {
         return lderror.reject(404);
       }
       ids = id.split('/');
-      obj = ids.length > 3
+      import$(obj, ids.length > 3
         ? {
           name: ids[0] + "/" + ids[1],
           version: ids[2],
@@ -33,32 +33,38 @@
           name: ids[0],
           version: ids[1],
           path: ids.slice(2).join('/')
-        };
+        });
       if (/:/.exec(obj.name)) {
         ref$ = obj.name.split(':'), obj.ns = ref$[0], obj.name = ref$[1];
       }
       if (!(obj.name && obj.version && obj.path)) {
         return lderror.reject(404);
       }
+      paths.base = (obj.ns ? obj.ns + ':' : '') + "" + obj.name;
+      paths.main = path.join(root, paths.base, 'main');
+      paths.version = path.join(root, paths.base, obj.version, '.version');
       if ((ref$ = obj.version) === 'main' || ref$ === 'latest') {
-        return lderror.reject(998);
+        if (!fs.existsSync(paths.version)) {
+          return lderror.reject(998);
+        }
+        obj.version = fs.readFileSync(paths.version).toString();
       }
       return provider.fetch(obj).then(function(arg$){
-        var version, content, v, base, main, versions, des;
+        var version, content, v, versions, isExisted, des;
         version = arg$.version, content = arg$.content;
-        if (fs.existsSync(verfile)) {
-          v = fs.readFileSync(verfile);
+        version = path.resolve(path.join('/', version)).substring(1);
+        fsExtra.ensureDirSync(paths.dir);
+        if (fs.existsSync(paths.version)) {
+          v = fs.readFileSync(paths.version).toString();
           if (v !== version) {
-            fsExtra.removeSync(dir);
-            fsExtra.ensureDirSync(dir);
+            fsExtra.removeSync(paths.dir);
+            fsExtra.ensureDirSync(paths.dir);
           }
         }
-        fs.writeFileSync(p, content);
-        fs.writeFileSync(verfile, version);
-        base = (obj.ns ? obj.ns + ':' : '') + "" + obj.name;
-        main = path.join(root, path.resolve(path.join('/', base, 'main')).substring(1));
-        versions = fs.existsSync(base)
-          ? fs.readdirSync(base)
+        fs.writeFileSync(paths.full, content);
+        fs.writeFileSync(paths.version, version);
+        versions = fs.existsSync(paths.base)
+          ? fs.readdirSync(paths.base)
           : [];
         versions.sort(function(a, b){
           if (a < b) {
@@ -69,12 +75,12 @@
             return 0;
           }
         });
-        if (!versions[0] || version > versions[0]) {
-          if (fs.existsSync(main)) {
-            fs.removeSync(main);
+        if (!versions[0] || version > versions[0] || !(isExisted = fs.existsSync(paths.main))) {
+          if (isExisted) {
+            fs.removeSync(paths.main);
           }
-          des = path.join(root, path.resolve(path.join('/', base, version)).substring(1));
-          fsExtra.ensureSymlink(des, main);
+          des = path.join(root, paths.base, version);
+          fsExtra.ensureSymlink(des, paths.main);
         }
         return content;
       });
@@ -85,7 +91,7 @@
       if (lderror.id(e) !== 404) {
         return Promise.reject(e);
       }
-      fs.writeFileSync(p404, '404');
+      fs.writeFileSync(paths[404], '404');
       return lderror.reject(404);
     });
   };
@@ -118,4 +124,9 @@
     };
   };
   module.exports = route;
+  function import$(obj, src){
+    var own = {}.hasOwnProperty;
+    for (var key in src) if (own.call(src, key)) obj[key] = src[key];
+    return obj;
+  }
 }).call(this);
