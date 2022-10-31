@@ -9,6 +9,7 @@
     this._ps = [].concat(o.chain || []);
     this._fetch = o.fetch;
     this._url = o.url;
+    this._opt = o.opt || {};
     return this;
   };
   provider._hash = {};
@@ -53,6 +54,39 @@
   }, ref$.chain = function(ps){
     this._ps.splice.apply(this._ps, [0, 0].concat(ps));
   }, ref$);
+  provider.add(new provider({
+    name: 'github',
+    url: function(arg$){
+      var name, version, path;
+      name = arg$.name, version = arg$.version, path = arg$.path;
+      return "https://raw.githubusercontent.com/" + name.replace(/^@/, '') + "/v" + version + "/" + path;
+    },
+    fetch: function(o){
+      var headers;
+      headers = this._opt.token
+        ? {
+          "Authorization": "token " + this._opt.token
+        }
+        : {};
+      return fetch(this.url(o), {
+        method: 'GET',
+        headers: headers
+      })['catch'](function(){
+        return lderror.reject(404);
+      }).then(function(r){
+        if (r.status === 404) {
+          return lderror.reject(404);
+        } else {
+          return r.text();
+        }
+      }).then(function(it){
+        return {
+          version: version,
+          content: it
+        };
+      });
+    }
+  }));
   provider.add(new provider({
     name: 'jsdelivr',
     url: function(arg$){

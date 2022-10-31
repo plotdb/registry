@@ -4,3 +4,4 @@ node_modules
 src/config.lson
 web/static/assets/lib
 backlog
+secret.*

@@ -1,13 +1,23 @@
-require! <[express path @plotdb/colors lderror]>
+require! <[fs express path @plotdb/colors lderror]>
 require! <[../src/provider ../src/route]>
 
+lib = fs.realpathSync path.dirname __filename
+
+if !fs.exists-sync path.join(lib, \secret.json) =>
+  console.log "please add a `secret.json` file with a access token for github access, such as:"
+  console.log ""
+  console.log '    {"token": "your-access-token-goes-here"}'
+  console.log ""
+  process.exit!
+
+token = JSON.parse(fs.read-file-sync path.join(lib, \secret.json) .toString!).token
 custom = new provider do
   fetch: ({name, version, path}) ->
     console.log name, version, path
     if !(/^ld/.exec(name)) => return lderror.reject 403
     return lderror.reject 404
 
-custom.chain [provider.get(\jsdelivr)]
+custom.chain [provider.get(\github), provider.get(\jsdelivr)]
 
 server = do
   init: (opt={}) ->
