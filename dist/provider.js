@@ -64,19 +64,28 @@
       return "https://raw.githubusercontent.com/" + name.replace(/^@/, '') + "/v" + version + "/" + path;
     },
     fetch: function(o){
-      var opt, ref$, headers;
-      if (o.ns !== 'github') {
-        return lderror.reject(404);
-      }
-      opt = (ref$ = import$({}, o), ref$.name = o.name.replace(/^@/, ''), ref$);
-      headers = this._opt.token
-        ? {
-          "Authorization": "token " + this._opt.token
+      var opt, this$ = this;
+      opt = {};
+      return Promise.resolve().then(function(){
+        var ret, scope, token, ref$, headers;
+        ret = /^@([^/]+)\/(.+)$/.exec(o.name);
+        scope = ret ? ret[1] : null;
+        import$(opt, o).name = o.name.replace(/^@/, '');
+        token = !this$._opt
+          ? null
+          : ((ref$ = this$._opt).scope || (ref$.scope = {}))[scope] || ((ref$ = this$._opt).repo || (ref$.repo = {}))[o.name] || this$._opt.token;
+        headers = !token
+          ? {}
+          : {
+            "Authorization": "token " + token
+          };
+        if (!token && o.ns !== 'github') {
+          return lderror.reject(404);
         }
-        : {};
-      return fetch(this.url(opt), {
-        method: 'GET',
-        headers: headers
+        return fetch(this$.url(opt), {
+          method: 'GET',
+          headers: headers
+        });
       })['catch'](function(e){
         if (lderror.id(e) === 404) {
           return lderror.reject(404);

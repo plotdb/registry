@@ -42,10 +42,16 @@ provider.add new provider do
   url: ({name, version, path}) ->
     "https://raw.githubusercontent.com/#{name.replace(/^@/,'')}/v#version/#path"
   fetch: (o) ->
-    if o.ns != \github => return lderror.reject 404
-    opt = {} <<< o <<< {name: o.name.replace(/^@/,'')}
-    headers = if @_opt.token => {"Authorization": "token #{@_opt.token}"} else {}
-    fetch @url(opt), {method: \GET, headers}
+    opt = {}
+    Promise.resolve!
+      .then ~>
+        ret = /^@([^/]+)\/(.+)$/.exec(o.name)
+        scope = if ret => ret.1 else null
+        opt <<< o <<< {name: o.name.replace(/^@/,'')}
+        token = if !@_opt => null else @_opt.{}scope[scope] or @_opt.{}repo[o.name] or @_opt.token
+        headers = if !token => {} else {"Authorization": "token #{token}"}
+        if !token and o.ns != \github => return lderror.reject 404
+        fetch @url(opt), {method: \GET, headers}
       .catch (e) ->
         if lderror.id(e) == 404 => return lderror.reject 404
         Promise.reject e

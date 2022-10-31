@@ -54,8 +54,10 @@
         fs.writeFileSync(verfile, version);
         return content;
       });
-    })['catch'](function(it){
-      console.log(it);
+    })['catch'](function(e){
+      if (lderror.id(e) !== 404) {
+        return Promise.reject(e);
+      }
       fs.writeFileSync(p404, '404');
       return lderror.reject(404);
     });

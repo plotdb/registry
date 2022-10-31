@@ -32,7 +32,8 @@ handle = ({provider, id, root}) ->
           fs.write-file-sync p, content
           fs.write-file-sync verfile, version
           return content
-    .catch ->
+    .catch (e) ->
+      if lderror.id(e) != 404 => return Promise.reject e
       fs.write-file-sync p404, '404'
       lderror.reject 404
 
