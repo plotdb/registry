@@ -12,12 +12,12 @@ argv = yargs
   .alias \help, \h
   .check (argv, options) ->
     if !argv.c => throw new Error("config file required")
-    cfgfile := path.join(lib, argv.c)
+    cfgfile := path.join(argv.c)
     if !fs.exists-sync(cfgfile) => throw new Error("config file not found: #cfgfile")
     return true
   .argv
 
-temp = fs.read-file-sync path.join(lib, \dist, \config.ngx) .toString!
+temp = fs.read-file-sync path.join(lib, '..', \dist, \config.ngx) .toString!
 code = fs.read-file-sync cfgfile .toString!
 try
   cfg = JSON.parse(code)

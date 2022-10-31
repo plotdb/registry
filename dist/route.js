@@ -9,8 +9,8 @@
     var provider, id, root;
     provider = arg$.provider, id = arg$.id, root = arg$.root;
     return Promise.resolve().then(function(){
-      var ids, name, version, p, obj, p404, dir, verfile;
-      if (!/^[a-zA-Z0-9@./]+$/.exec(id)) {
+      var ids, name, version, p, ref$, ns, obj, p404, dir, verfile;
+      if (!/^[-:a-zA-Z0-9@./]+$/.exec(id)) {
         return lderror.reject(404);
       }
       ids = id.split('/');
@@ -23,7 +23,14 @@
         version = ids[1];
         p = ids.slice(2).join('/');
       }
+      if (/:/.exec(name)) {
+        ref$ = name.split(':'), ns = ref$[0], name = ref$[1];
+      }
+      if (!(name && version && path)) {
+        return lderror.reject(404);
+      }
       obj = {
+        ns: ns,
         name: name,
         version: version,
         path: p

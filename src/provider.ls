@@ -18,6 +18,7 @@ provider <<<
 
 provider.prototype = Object.create(Object.prototype) <<<
   url: (o) -> @_url o
+  opt: (o) -> @_opt = o or {}
   fetch: (o = {}) ->
     _ = (idx = -1) ~>
       if idx == -1 and !@_fetch => idx = 0
@@ -42,11 +43,14 @@ provider.add new provider do
     "https://raw.githubusercontent.com/#{name.replace(/^@/,'')}/v#version/#path"
   fetch: (o) ->
     if o.ns != \github => return lderror.reject 404
+    opt = {} <<< o <<< {name: o.name.replace(/^@/,'')}
     headers = if @_opt.token => {"Authorization": "token #{@_opt.token}"} else {}
-    fetch @url(o), {method: \GET, headers}
-      .catch -> lderror.reject 404
+    fetch @url(opt), {method: \GET, headers}
+      .catch (e) ->
+        if lderror.id(e) == 404 => return lderror.reject 404
+        Promise.reject e
       .then (r) -> if r.status == 404 => lderror.reject 404 else r.text!
-      .then -> {version, content: it}
+      .then -> {version: o.version, content: it}
 
 provider.add new provider do
   name: \jsdelivr

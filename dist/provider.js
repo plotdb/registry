@@ -22,6 +22,8 @@
   };
   provider.prototype = (ref$ = Object.create(Object.prototype), ref$.url = function(o){
     return this._url(o);
+  }, ref$.opt = function(o){
+    return this._opt = o || {};
   }, ref$.fetch = function(o){
     var _, this$ = this;
     o == null && (o = {});
@@ -62,17 +64,24 @@
       return "https://raw.githubusercontent.com/" + name.replace(/^@/, '') + "/v" + version + "/" + path;
     },
     fetch: function(o){
-      var headers;
+      var opt, ref$, headers;
+      if (o.ns !== 'github') {
+        return lderror.reject(404);
+      }
+      opt = (ref$ = import$({}, o), ref$.name = o.name.replace(/^@/, ''), ref$);
       headers = this._opt.token
         ? {
           "Authorization": "token " + this._opt.token
         }
         : {};
-      return fetch(this.url(o), {
+      return fetch(this.url(opt), {
         method: 'GET',
         headers: headers
-      })['catch'](function(){
-        return lderror.reject(404);
+      })['catch'](function(e){
+        if (lderror.id(e) === 404) {
+          return lderror.reject(404);
+        }
+        return Promise.reject(e);
       }).then(function(r){
         if (r.status === 404) {
           return lderror.reject(404);
@@ -81,7 +90,7 @@
         }
       }).then(function(it){
         return {
-          version: version,
+          version: o.version,
           content: it
         };
       });
@@ -139,5 +148,10 @@
     module.exports = provider;
   } else if (typeof window != 'undefined' && window !== null) {
     window.registry = provider;
+  }
+  function import$(obj, src){
+    var own = {}.hasOwnProperty;
+    for (var key in src) if (own.call(src, key)) obj[key] = src[key];
+    return obj;
   }
 }).call(this);

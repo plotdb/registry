@@ -4,6 +4,7 @@
   "license": "MIT",
   "description": "registry",
   "version": "0.0.1",
+  "main": "./dist/index.js",
   "homepage": "https://github.com/plotdb/registry",
   "repository": {
     "type": "git",

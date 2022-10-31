@@ -3,7 +3,7 @@ require! <[fs fs-extra path @plotdb/block lderror]>
 handle = ({provider, id, root}) ->
   Promise.resolve!
     .then ->
-      if !/^[a-zA-Z0-9@./]+$/.exec(id) => return lderror.reject 404
+      if !/^[-:a-zA-Z0-9@./]+$/.exec(id) => return lderror.reject 404
       ids = id.split(\/)
       if ids.length > 3 =>
         name = "#{ids.0}/#{ids.1}"
@@ -13,7 +13,9 @@ handle = ({provider, id, root}) ->
         name = ids.0
         version = ids.1
         p = ids.slice(2).join(\/)
-      obj = {name, version, path: p}
+      if /:/.exec(name) => [ns, name] = name.split(':')
+      if !(name and version and path) => return lderror.reject 404
+      obj = {ns, name, version, path: p}
       p404 = path.join(root, path.resolve(path.join(\/, id)).substring(1)) + ".404"
       p = path.join(root, path.resolve(path.join(\/, id)).substring(1))
       if !p => return lderror 400
