@@ -22,6 +22,7 @@ handle = ({provider, id, root}) ->
         path: ids.slice(2).join(\/)
       if /:/.exec(obj.name) => [obj.ns, obj.name] = obj.name.split(':')
       if !(obj.name and obj.version and obj.path) => return lderror.reject 404
+      if obj.version in <[main latest]> => return lderror.reject 998
       provider.fetch obj
         .then ({version, content}) ->
           if fs.exists-sync verfile =>
@@ -31,8 +32,21 @@ handle = ({provider, id, root}) ->
               fs-extra.ensure-dir-sync dir
           fs.write-file-sync p, content
           fs.write-file-sync verfile, version
+
+          # prepare a `main` symlink to latest revision
+          base = "#{if obj.ns => obj.ns + ':' else ''}#{obj.name}"
+          main = path.join(root, path.resolve(path.join(\/, base, 'main')).substring(1))
+          versions = if fs.exists-sync(base) => fs.readdir-sync base else []
+          versions.sort (a,b) -> if a < b => 1 else if a > b => -1 else 0
+          if !versions.0 or version > versions.0 =>
+            if fs.exists-sync main => fs.removeSync main
+            des = path.join(root, path.resolve(path.join(\/, base, version)).substring(1))
+            fs-extra.ensure-symlink des, main
+
           return content
     .catch (e) ->
+      # error we should skip. e.g., request of semantic versions such as `main` or `latest`
+      if lderror.id(e) == 998 => return lderror.reject 404
       if lderror.id(e) != 404 => return Promise.reject e
       fs.write-file-sync p404, '404'
       lderror.reject 404

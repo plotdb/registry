@@ -40,8 +40,11 @@
       if (!(obj.name && obj.version && obj.path)) {
         return lderror.reject(404);
       }
+      if ((ref$ = obj.version) === 'main' || ref$ === 'latest') {
+        return lderror.reject(998);
+      }
       return provider.fetch(obj).then(function(arg$){
-        var version, content, v;
+        var version, content, v, base, main, versions, des;
         version = arg$.version, content = arg$.content;
         if (fs.existsSync(verfile)) {
           v = fs.readFileSync(verfile);
@@ -52,9 +55,33 @@
         }
         fs.writeFileSync(p, content);
         fs.writeFileSync(verfile, version);
+        base = (obj.ns ? obj.ns + ':' : '') + "" + obj.name;
+        main = path.join(root, path.resolve(path.join('/', base, 'main')).substring(1));
+        versions = fs.existsSync(base)
+          ? fs.readdirSync(base)
+          : [];
+        versions.sort(function(a, b){
+          if (a < b) {
+            return 1;
+          } else if (a > b) {
+            return -1;
+          } else {
+            return 0;
+          }
+        });
+        if (!versions[0] || version > versions[0]) {
+          if (fs.existsSync(main)) {
+            fs.removeSync(main);
+          }
+          des = path.join(root, path.resolve(path.join('/', base, version)).substring(1));
+          fsExtra.ensureSymlink(des, main);
+        }
         return content;
       });
     })['catch'](function(e){
+      if (lderror.id(e) === 998) {
+        return lderror.reject(404);
+      }
       if (lderror.id(e) !== 404) {
         return Promise.reject(e);
       }
