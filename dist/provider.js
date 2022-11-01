@@ -59,9 +59,13 @@
   provider.add(new provider({
     name: 'github',
     url: function(arg$){
-      var name, version, path;
+      var name, version, path, v;
       name = arg$.name, version = arg$.version, path = arg$.path;
-      return "https://raw.githubusercontent.com/" + name.replace(/^@/, '') + "/v" + version + "/" + path;
+      v = "v" + version;
+      if (!/^[0-9.]+$/.exec(version)) {
+        v = version;
+      }
+      return "https://raw.githubusercontent.com/" + name.replace(/^@/, '') + "/" + v + "/" + path;
     },
     fetch: function(o){
       var opt, this$ = this;
@@ -82,6 +86,7 @@
         if (!token && o.ns !== 'github') {
           return lderror.reject(404);
         }
+        console.log(this$.url(opt));
         return fetch(this$.url(opt), {
           method: 'GET',
           headers: headers

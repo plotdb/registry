@@ -40,7 +40,9 @@ provider.prototype = Object.create(Object.prototype) <<<
 provider.add new provider do
   name: \github
   url: ({name, version, path}) ->
-    "https://raw.githubusercontent.com/#{name.replace(/^@/,'')}/v#version/#path"
+    v = "v#version"
+    if !/^[0-9.]+$/.exec(version) => v = version
+    "https://raw.githubusercontent.com/#{name.replace(/^@/,'')}/#v/#path"
   fetch: (o) ->
     opt = {}
     Promise.resolve!
