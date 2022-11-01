@@ -30,8 +30,8 @@ handle = ({provider, id, root}) ->
       paths.version = path.join(root, paths.base, obj.version, \.version)
 
       if obj.version in <[main latest]> =>
-        if !fs.exists-sync(paths.version) => return lderror.reject 998
-        obj.version = fs.read-file-sync paths.version .toString!
+        obj.version = if !fs.exists-sync(paths.version) => \master
+        else fs.read-file-sync paths.version .toString!
 
       provider.fetch obj
         .then ({version, content}) ->
@@ -58,6 +58,7 @@ handle = ({provider, id, root}) ->
       # error we should skip. e.g., request of semantic versions such as `main` or `latest`
       if lderror.id(e) == 998 => return lderror.reject 404
       if lderror.id(e) != 404 => return Promise.reject e
+      fs-extra.ensure-dir-sync paths.dir
       fs.write-file-sync paths.404, '404'
       lderror.reject 404
 
@@ -65,7 +66,7 @@ route = ({provider, root}) ->
   if !root.pub.endsWith \/ => root.pub = "#{root.pub}/"
   (req, res) ->
     url = req.originalUrl
-    id = url.replace(root.pub, '')
+    id = url.replace(root.pub, '').replace(/[#?].*$/,'')
     handle {provider, id, root: root.fs}
       .then ->
         res.set { "X-Accel-Redirect": path.join(root.internal, id) }

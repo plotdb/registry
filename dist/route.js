@@ -44,10 +44,9 @@
       paths.main = path.join(root, paths.base, 'main');
       paths.version = path.join(root, paths.base, obj.version, '.version');
       if ((ref$ = obj.version) === 'main' || ref$ === 'latest') {
-        if (!fs.existsSync(paths.version)) {
-          return lderror.reject(998);
-        }
-        obj.version = fs.readFileSync(paths.version).toString();
+        obj.version = !fs.existsSync(paths.version)
+          ? 'master'
+          : fs.readFileSync(paths.version).toString();
       }
       return provider.fetch(obj).then(function(arg$){
         var version, content, v, versions, isExisted, des;
@@ -91,6 +90,7 @@
       if (lderror.id(e) !== 404) {
         return Promise.reject(e);
       }
+      fsExtra.ensureDirSync(paths.dir);
       fs.writeFileSync(paths[404], '404');
       return lderror.reject(404);
     });
@@ -104,7 +104,7 @@
     return function(req, res){
       var url, id;
       url = req.originalUrl;
-      id = url.replace(root.pub, '');
+      id = url.replace(root.pub, '').replace(/[#?].*$/, '');
       return handle({
         provider: provider,
         id: id,
