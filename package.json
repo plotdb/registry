@@ -22,14 +22,17 @@
   },
   "dependencies": {
     "@zbryikt/template": "^2.3.33",
-    "fs-extra": "^8.0.0",
+    "fs-extra": "^8.1.0",
     "js-yaml": "^4.1.0",
     "lderror": "^2.3.2",
     "livescript": "^1.6.0",
     "node-fetch": "^2.6.7",
+    "pthk": "^0.0.1",
     "request": "^2.88.2",
+    "tar": "^6.1.11",
     "template-text": "^0.1.2",
-    "yargs": "^17.6.0"
+    "yargs": "^17.6.0",
+    "yauzl": "^2.10.0"
   },
   "devDependencies": {
     "@loadingio/bootstrap.ext": "^0.0.9",
