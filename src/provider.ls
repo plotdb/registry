@@ -13,7 +13,7 @@ provider = (o = {}) ->
   @_ps = [] ++ (o.chain or [])
   @_fetch-real-version = o.fetch-real-version
   @_fetch-bundle-file = o.fetch-bundle-file
-  @_url = o.url
+  @_check = o.check
   @_opt = o.opt or {}
   @
 
@@ -24,7 +24,6 @@ provider <<<
   get: (n) -> @_hash[n]
 
 provider.prototype = Object.create(Object.prototype) <<<
-  url: (o) -> @_url o
   opt: (o) -> @_opt = o or {}
   fetch: (o = {}) ->
     <~ Promise.resolve!then _
@@ -40,19 +39,23 @@ provider.prototype = Object.create(Object.prototype) <<<
     path.version = pthk.join(path.base.version, '.reg.version')
     path.404 = pthk.join(path.base.version, '.reg.404')
     _ = (idx = -1) ~>
-      if idx == -1 and !@_fetch-real-version => idx = 0
       if idx >= 0 =>
         if !(pr = @_ps[idx]) => return lderror.reject 404
-        p = pr._fetch params
-      else p = @_fetch params
+        p = pr.check({name, version}).then ~> pr._fetch params
+      else
+        p = @check({name, version})
+          .then ~>
+            if !@_fetch-real-version => lderror.reject 404
+            else @_fetch params
       p.catch (e) -> return if (id = lderror.id e) != 404 => Promise.reject e else _(idx + 1)
     _!catch (e) ->
-      if (id = lderror.id(e)) != 404 => return Promise.reject e
+      if !((id = lderror.id(e)) in [403 404]) => return Promise.reject e
       fs.ensure-dir path.base.version
         .then -> fs.write-file path.404, ''
         .then -> return lderror.reject 404
 
-  chain: (ps) -> @_ps.splice.apply @_ps, ([0, 0] ++ ps)
+  check: ({name, version}) -> if @_check => @_check {name, version} else Promise.resolve!
+  chain: (ps) -> @_ps.splice.apply @_ps, ([0, 0] ++ (if Array.isArray(ps) => ps else [ps]))
 
   _fetch: (params) ->
     {root, name, version, cachetime, force, path, version-type} = params

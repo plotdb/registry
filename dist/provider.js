@@ -22,7 +22,7 @@
     this._ps = [].concat(o.chain || []);
     this._fetchRealVersion = o.fetchRealVersion;
     this._fetchBundleFile = o.fetchBundleFile;
-    this._url = o.url;
+    this._check = o.check;
     this._opt = o.opt || {};
     return this;
   };
@@ -34,9 +34,7 @@
   provider.get = function(n){
     return this._hash[n];
   };
-  provider.prototype = (ref$ = Object.create(Object.prototype), ref$.url = function(o){
-    return this._url(o);
-  }, ref$.opt = function(o){
+  provider.prototype = (ref$ = Object.create(Object.prototype), ref$.opt = function(o){
     return this._opt = o || {};
   }, ref$.fetch = function(o){
     var this$ = this;
@@ -71,16 +69,27 @@
       _ = function(idx){
         var pr, p;
         idx == null && (idx = -1);
-        if (idx === -1 && !this$._fetchRealVersion) {
-          idx = 0;
-        }
         if (idx >= 0) {
           if (!(pr = this$._ps[idx])) {
             return lderror.reject(404);
           }
-          p = pr._fetch(params);
+          p = pr.check({
+            name: name,
+            version: version
+          }).then(function(){
+            return pr._fetch(params);
+          });
         } else {
-          p = this$._fetch(params);
+          p = this$.check({
+            name: name,
+            version: version
+          }).then(function(){
+            if (!this$._fetchRealVersion) {
+              return lderror.reject(404);
+            } else {
+              return this$._fetch(params);
+            }
+          });
         }
         return p['catch'](function(e){
           var id;
@@ -91,7 +100,7 @@
       };
       return _()['catch'](function(e){
         var id;
-        if ((id = lderror.id(e)) !== 404) {
+        if (!((id = lderror.id(e)) === 403 || id === 404)) {
           return Promise.reject(e);
         }
         return fs.ensureDir(path.base.version).then(function(){
@@ -101,8 +110,21 @@
         });
       });
     });
+  }, ref$.check = function(arg$){
+    var name, version;
+    name = arg$.name, version = arg$.version;
+    if (this._check) {
+      return this._check({
+        name: name,
+        version: version
+      });
+    } else {
+      return Promise.resolve();
+    }
   }, ref$.chain = function(ps){
-    return this._ps.splice.apply(this._ps, [0, 0].concat(ps));
+    return this._ps.splice.apply(this._ps, [0, 0].concat(Array.isArray(ps)
+      ? ps
+      : [ps]));
   }, ref$._fetch = function(params){
     var root, name, version, cachetime, force, path, versionType, this$ = this;
     root = params.root, name = params.name, version = params.version, cachetime = params.cachetime, force = params.force, path = params.path, versionType = params.versionType;

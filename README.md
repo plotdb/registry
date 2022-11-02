@@ -1,12 +1,21 @@
 # @plotdb/registry
 
-`@plotdb/registry` is a definition and tool for how modules are managed. It helps us fetching and managing pacakges and module files.
+`@plotdb/registry` is a local package cache service for dynamic package loading. Similar to CDN but it's meant to provide package access control directly via the backend access point.
 
-It provides:
+Basic idea:
 
- - an express route for fetching and storing requested module files.
- - a nginx config for accessing requested files based on availability of file.
- - a provider interface for customizing and chaining module providers.
+ - reverse proxy (nginx) check if a file exists. return it directly if found.
+ - if the file is not found, request is passed to registry backend.
+ - registry backend looks up the given package based on the file's path, and download the package if found.
+ - registry backend instruct nginx to redirect for the downloaded file.
+
+You can config the backend router to allow only certain packages to be downloaded, or provide additional information to download private packages.
+
+`@plotdb/registry` provides:
+
+ - a package provider interface for fetching, gatekeeping and chaining other package providers.
+ - an express router for accepting fetching requests from users.
+ - a nginx config generator for accessing requested files based on availability of file.
 
 
 ## Usage
@@ -22,9 +31,9 @@ prepare a provider:
 
     # our own provider, only fetch modules in @plotdb scope
     myprovider = new registry do
-      fetch: ({name, version, path}) ->
-        if /@plotdb/.exec(name) => return fetch("/assets/lib/#name/#version/#path").then -> it.text!
-        return lderror 404
+      check: ({name, version, path}) ->
+        if /@plotdb/.exec(name) => return Promise.resolve!
+        return lderror.reject 403
     # chain a default jsdelivr provider
     myprovider.chain(registry.provider.jsdelivr);
 
@@ -77,15 +86,41 @@ A registry provider can be either following format:
 
 A registry provider object should contain following fields:
 
- - `url({ns, name, version, path, type})`: for a given resource, return an URL string pointing to it.
- - `fetch({ns, name, version, path, type})`: for fetching resource object.
-   - return value: should always return Promise.
-     - if found, return a Promise which resolves with an object with following fields:
-       - `version`: exact version of the returned content for the requested resource.
-       - `content`: content of the requested resource
-     - if not found, return a Promise which rejects with `lderror(404)`.
-       - Error other than `lderror(404)` triggers exception.
-       - when chained, only `lderror(404)` triggers fetch of chained provider.
+ - `name`: provider name
+ - `check({name, version})`: access control for the given package `{name, version}`.
+   - when omitted, no check will be done.
+   - return:
+     - if the given package is not allowed:
+       - a Promise rejects with `{id: 403, name: 'lderror'}` (or, `lderror.reject(403)`)
+     - otherwise:
+       - a Promise resolves with nothing.
+
+ - `fetchRealVersion(opt)`: fetch version and tarball informations of a given package.
+   - return a promise resolves with an object.
+     - resolved object should contains following fields:
+       - `version`: actual version for the given package information.
+       - `url`: tarball url
+   - `opt` is an object with following fields:
+     - `root`: root directory of registry cache. 
+     - `path`: an object with following fields:
+       - `base`: an object with following fields:
+         - `pkg`: package root directory ( exclude version name )
+         - `version`: package directory of specific version.
+       - `version`: path of the internal file storing return object of `fetchRealVersion` call.
+       - `404`: path of the internal file that if it exists then the given version of this package is not found.
+     - `name`: package name.
+     - `version`: package version. should be semver. could be version range, `latest` or `main`.
+     - `cachetime`: expected cache time in seconds. default 3600 if omitted.`
+     - `versionType`: either `latest`, `specifc` or `range`.
+     - `force`: when true, should always try to fetch, ignoring cache or current status.
+ - `fetchBundleFile(opt)`: fetch the given package and ectract it.
+   - return a promise resolves when bundle file is extracted completely.
+   - check `fetchRealVersion` for the definition of `opt`.
+
+A provider provides following APIs:
+
+ - `opt(opt)`: provide additional options for this provider.
+   - once provided, this can be accessed via `this._opt` internally.
  - `fetch(opt)`: download the indicated released packages and create a local copy at specified location.
    - `opt` is an object with following fields:
       - `root`: root directory for keeping cached files.
@@ -104,6 +139,11 @@ A registry provider object should contain following fields:
             if it's actually 404, nginx will then look up the file and report 404 after found not found.
           - the result will then cached by nginx and won't hit registry backend until cache expires.
       - otherwise, it's an internal exception and should be logged and tracked.
+ - `check({name, version})`: call the `check()` function provided in constructor.
+ - `chain(providers)`: chain given `providers` in this provider.
+   - `providers`: either another provider, or a list of other providers.
+   - chained providers will be called if current provider return 404.
+
 
 ## License
 

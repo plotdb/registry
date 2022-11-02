@@ -12,10 +12,8 @@ if !fs.exists-sync path.join(lib, \secret.json) =>
 
 token = JSON.parse(fs.read-file-sync path.join(lib, \secret.json) .toString!)
 custom = new provider do
-  fetch: ({name, version, path}) ->
-    console.log name, version, path
-    if !(/^ld/.exec(name)) => return lderror.reject 403
-    return lderror.reject 404
+  check: ({name, version, path}) ->
+    return if !(/^(ld|pth|@plotdb)/.exec(name)) => lderror.reject 403 else Promise.resolve!
 
 github.opt token
 custom.chain([github, npm])
