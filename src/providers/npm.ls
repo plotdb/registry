@@ -1,5 +1,4 @@
 require! <[node-fetch lderror ../provider ../unbox]>
-fs = require "fs-extra"
 
 pvd = new provider do
   name: \github
@@ -19,6 +18,7 @@ pvd = new provider do
       .then (r) -> r.buffer!
       .then (buf) -> unbox.untar {path, buf}
 
+module.exports = pvd
 /*
 params =
   root: 'npmlib'

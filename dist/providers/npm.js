@@ -1,10 +1,9 @@
 (function(){
-  var nodeFetch, lderror, provider, unbox, fs, pvd;
+  var nodeFetch, lderror, provider, unbox, pvd;
   nodeFetch = require('node-fetch');
   lderror = require('lderror');
   provider = require('../provider');
   unbox = require('../unbox');
-  fs = require("fs-extra");
   pvd = new provider({
     name: 'github',
     fetchRealVersion: function(arg$){
@@ -52,6 +51,7 @@
       });
     }
   });
+  module.exports = pvd;
   /*
   params =
     root: 'npmlib'

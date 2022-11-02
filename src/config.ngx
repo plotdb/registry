@@ -1,5 +1,11 @@
+
+# this should be put outside server block, where `<cache>` should be the same with `cache.name` config.
+# proxy_cache_path /tmp/cache keys_zone=<cache>:10m levels=1:2 inactive=600s max_size=100m;
+
 # requests to path under `internal` are from `X-Accel-Redirect` from registry backend
 # and thus should not hit backend again.
+
+
 location ~ ^/!{internal}/(.*)$ {
   internal;
   root !{root};
@@ -31,7 +37,7 @@ location @registry_backend {
   proxy_set_header X-NginX-Proxy true;
   proxy_set_header X-Forwarded-Proto $scheme;
   # cache 200 / 404 result for `cache-period` so user can't bombard our backend
-  proxy_cache cache;
-  proxy_cache_valid 200 404 !{cache-period};
+  proxy_cache !{cache.name};
+  proxy_cache_valid 200 404 !{cache.period};
   proxy_pass http://!{upstream};
 }

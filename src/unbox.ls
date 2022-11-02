@@ -22,6 +22,10 @@ unzip = ({path, buf}) ->
 
 untar = ({path, buf}) ->
   stream.Readable.from buf
-    .pipe tar.x strip: 1, cwd: path.base.version
+    .pipe ws = tar.x strip: 1, cwd: path.base.version
+  (res, rej) <- new Promise _
+  ws.on \close, -> res!
+  ws.on \error, -> rej it
+
 
 module.exports = {unzip, untar}

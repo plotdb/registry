@@ -16,7 +16,7 @@ handle = ({provider, id, root}) ->
         version: ids.1
         path: ids.slice(2).join(\/)
       if !(obj.name and obj.version and obj.path) => return lderror.reject 404
-      provider.fetch-module {
+      provider.fetch {
         root: root.fs
         name: obj.name
         version: obj.version
@@ -33,7 +33,7 @@ route = ({provider, root}) ->
   (req, res) ->
     url = req.originalUrl
     id = url.replace(root.pub, '').replace(/[#?].*$/,'')
-    handle {provider, id, root: root.fs}
+    handle {provider, id, root}
       .then ->
         res.set { "X-Accel-Redirect": pthk.join(root.internal, id) }
         res.send!

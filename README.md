@@ -55,7 +55,15 @@ where the config file ( `myconfig.yaml` above ) should contains following fields
  - `pub`: `pub` in the `root` parameter in `registry.route` call.
  - `fs`: `fs` in the `root` parameter in `registry.route` call.
  - `upstream`: upstream url for your backend server defined in your nginx config file. e.g., `backend_api`.
- - `cached-period`: how long the nginx proxy cache should last. e.g., `10m`.
+ - `cache`: with two subfields:
+   - `name`: cache name.
+     - for caching to work, you should manually add a cache path directive using the name configed here, e.g.,
+
+           proxy_cache_path /tmp/cache keys_zone=mycache:10m levels=1:2 inactive=600s max_size=100m; 
+
+   - `period`: how long the nginx proxy cache should last. e.g., `10m`.
+
+Check `sample/config.ngx` and `sample/config.yaml` for a reference of nginx config file and corresponding config yaml.
 
 
 ## Registry Provider Specification
@@ -78,7 +86,24 @@ A registry provider object should contain following fields:
      - if not found, return a Promise which rejects with `lderror(404)`.
        - Error other than `lderror(404)` triggers exception.
        - when chained, only `lderror(404)` triggers fetch of chained provider.
-
+ - `fetch(opt)`: download the indicated released packages and create a local copy at specified location.
+   - `opt` is an object with following fields:
+      - `root`: root directory for keeping cached files.
+      - `name`: package name. scope is possible, such as `@plotdb/block`.
+      - `version`: package version. should always in semver format (e.g., `1.0.0`) or one of `latest` or `main`.
+        - in `@plotdb/block` `main` is the locked version, however there is no locked version defined here,
+          so `main` is equivalent to `latest`.
+        - in github, tags is used for fetching release. tags should be in format `vx.y.z`. e.g., `v1.0.0`.
+      - `force`: default false. when true, ignore cache / 404 status and always try fetching package again.
+      - `cachetime`: default 3600 seconds. cache for how long (in seconds) since the last fetch attempts.
+    - return value: a Promise, resolves if package is found and downloaded. reject `e` in following situation:
+      - lderror.id(e) is not 0, but following:
+        - 404: package not found.
+        - 998: package either found or not found. result cached so no fetch is performed.
+          - by our design, router send a `X-Accel-Redirect` to nginx if 998.
+            if it's actually 404, nginx will then look up the file and report 404 after found not found.
+          - the result will then cached by nginx and won't hit registry backend until cache expires.
+      - otherwise, it's an internal exception and should be logged and tracked.
 
 ## License
 

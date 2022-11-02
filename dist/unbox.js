@@ -48,12 +48,20 @@
     });
   };
   untar = function(arg$){
-    var path, buf;
+    var path, buf, ws;
     path = arg$.path, buf = arg$.buf;
-    return stream.Readable.from(buf).pipe(tar.x({
+    stream.Readable.from(buf).pipe(ws = tar.x({
       strip: 1,
       cwd: path.base.version
     }));
+    return new Promise(function(res, rej){
+      ws.on('close', function(){
+        return res();
+      });
+      return ws.on('error', function(it){
+        return rej(it);
+      });
+    });
   };
   module.exports = {
     unzip: unzip,

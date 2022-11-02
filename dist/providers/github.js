@@ -1,18 +1,29 @@
 (function(){
-  var nodeFetch, lderror, provider, unbox, fs, pvd;
+  var nodeFetch, lderror, provider, unbox, getToken, pvd;
   nodeFetch = require('node-fetch');
   lderror = require('lderror');
   provider = require('../provider');
   unbox = require('../unbox');
-  fs = require("fs-extra");
+  getToken = function(arg$){
+    var name, opt, ret, scope, token;
+    name = arg$.name, opt = arg$.opt;
+    ret = /^@([^/]+)\/(.+)$/.exec(name);
+    scope = ret ? ret[1] : null;
+    return token = !opt
+      ? null
+      : (opt.scope || (opt.scope = {}))[scope] || (opt.repo || (opt.repo = {}))[name] || opt.token || null;
+  };
   pvd = new provider({
     name: 'github',
     fetchRealVersion: function(arg$){
-      var root, path, name, cachetime, version, versionType, force, opt, headers, release, jsonurl;
-      root = arg$.root, path = arg$.path, name = arg$.name, cachetime = arg$.cachetime, version = arg$.version, versionType = arg$.versionType, force = arg$.force, opt = arg$.opt;
-      headers = (opt || {}).token
+      var root, path, name, cachetime, version, versionType, force, headers, token, release, jsonurl;
+      root = arg$.root, path = arg$.path, name = arg$.name, cachetime = arg$.cachetime, version = arg$.version, versionType = arg$.versionType, force = arg$.force;
+      headers = (token = getToken({
+        name: name,
+        opt: this._opt
+      }))
         ? {
-          "Authorization": "token " + opt.token
+          "Authorization": "token " + token
         }
         : {};
       release = versionType === 'latest'
@@ -36,11 +47,14 @@
       });
     },
     fetchBundleFile: function(arg$){
-      var root, path, name, cachetime, version, remoteInfo, versionType, force, opt, headers;
-      root = arg$.root, path = arg$.path, name = arg$.name, cachetime = arg$.cachetime, version = arg$.version, remoteInfo = arg$.remoteInfo, versionType = arg$.versionType, force = arg$.force, opt = arg$.opt;
-      headers = (opt || {}).token
+      var root, path, name, cachetime, version, remoteInfo, versionType, force, headers, token;
+      root = arg$.root, path = arg$.path, name = arg$.name, cachetime = arg$.cachetime, version = arg$.version, remoteInfo = arg$.remoteInfo, versionType = arg$.versionType, force = arg$.force;
+      headers = (token = getToken({
+        name: name,
+        opt: this._opt
+      }))
         ? {
-          "Authorization": "token " + opt.token
+          "Authorization": "token " + token
         }
         : {};
       return nodeFetch(remoteInfo.url, {
@@ -56,6 +70,7 @@
       });
     }
   });
+  module.exports = pvd;
   /*
   params =
     root: 'lib'

@@ -27,7 +27,7 @@
       if (!(obj.name && obj.version && obj.path)) {
         return lderror.reject(404);
       }
-      return provider.fetchModule({
+      return provider.fetch({
         root: root.fs,
         name: obj.name,
         version: obj.version,
@@ -57,7 +57,7 @@
       return handle({
         provider: provider,
         id: id,
-        root: root.fs
+        root: root
       }).then(function(){
         res.set({
           "X-Accel-Redirect": pthk.join(root.internal, id)
