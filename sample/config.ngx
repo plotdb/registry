@@ -1,6 +1,7 @@
 upstream registry_api {
   server 127.0.0.1:9900;
 }
+proxy_cache_path /tmp/cache keys_zone=cache:10m levels=1:2 inactive=600s max_size=100m;
 server {
   listen 80;
   server_name registry.loco;
@@ -15,12 +16,21 @@ server {
     try_files /lib/$1 /lib/$1/lib/index.html /$1/index.min.js =404;
   }
 
-  location ~ ^/lib/(.*)$ {
+  #location ~ ^/lib/(?<scope>.+)/(?<name>.+)/(?<version>.+)/(?<path>.*)$ {
+  location ~ ^/lib/(?<name>.+)/(?<version>.+)/(?<path>.*)$ {
     root /var/lib/cdn/cache/;
-    if (-f $request_filename.404) {
-      return 404 "";
-      break;
-    }
+    # proxy_cache is file-based. here we use `.reg.404` for pkg-based 404 detection
+    # however, we don't know how to invalidate this. So this is not used for now.
+    #if (-f /var/lib/cdn/cache/lib/$name/$version/.reg.404) {
+    #  return 404 "";
+    #  break;
+    #}
+
+    #if (!-f /var/lib/cdn/cache/lib/$name/$version/.reg.version) {
+    #  #try_files @apiserver =404;
+    #  return 200 "no version";
+    #  break;
+    #}
     try_files /lib/$1 /lib/$1/index.html /lib/$1/index.min.js @apiserver;
   }
 
@@ -30,6 +40,8 @@ server {
     proxy_set_header Host $http_host;
     proxy_set_header X-NginX-Proxy true;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache cache;
+    proxy_cache_valid 200 404 10m;
     proxy_pass http://registry_api;
   }
 

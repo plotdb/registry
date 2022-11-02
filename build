@@ -5,28 +5,12 @@ mkdir -p dist
 rm -rf bin
 mkdir -p bin
 
-echo "build src/provider.ls -> dist/provider.js ..."
-./node_modules/.bin/lsc -cp --no-header src/provider.ls > dist/provider.js
-
-echo "build src/route.ls -> dist/route.js ..."
-./node_modules/.bin/lsc -cp --no-header src/route.ls > dist/route.js
-
-echo "build src/index.ls -> dist/index.js ..."
-./node_modules/.bin/lsc -cp --no-header src/index.ls > dist/index.js
-
+echo "transpile livescript in src to dist ..."
+./node_modules/.bin/lsc -co dist --no-header src 
 echo "build src/ngxgen.ls -> bin/ngxgen.js ..."
 echo "#!/usr/bin/env node" > bin/ngxgen.js
 ./node_modules/.bin/lsc -cp --no-header src/ngxgen.ls >> bin/ngxgen.js
 chmod 755 bin/ngxgen.js
-
-echo "minifying dist/provider.js ..."
-./node_modules/.bin/uglifyjs dist/provider.js -m -c > dist/provider.min.js
-
-echo "minifying dist/route.js ..."
-./node_modules/.bin/uglifyjs dist/route.js -m -c > dist/route.min.js
-
-echo "minifying dist/index.js ..."
-./node_modules/.bin/uglifyjs dist/index.js -m -c > dist/index.min.js
 
 echo "copy src/config.ngx to dist ..."
 cp src/config.ngx dist

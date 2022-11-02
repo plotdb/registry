@@ -2,3 +2,4 @@ internal: ilib
 pub: lib
 root: /var/lib/cdn/cache/
 upstream: apiserver
+cache-period: 10m

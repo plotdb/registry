@@ -23,7 +23,12 @@ server = do
   init: (opt={}) ->
     app = express!
     app.use \/, express.static \static
-    app.get '/lib/*', route {provider: custom, root: pub: \/lib/, fs: \/var/lib/cdn/cache/lib, internal: \/ilib/}
+    #app.get '/lib/*', route {provider: custom, root: pub: \/lib/, fs: \/var/lib/cdn/cache/lib, internal: \/ilib/}
+    app.get '/lib/*', (req, res) ->
+      route {
+      console.log \hit
+      res.status 400 .send!
+
     console.log "[Server] Express Initialized in #{app.get \env} Mode".green
     server = app.listen opt.port, ->
       delta = if opt.start-time => "( takes #{Date.now! - opt.start-time}ms )" else ''

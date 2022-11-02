@@ -55,6 +55,7 @@ where the config file ( `myconfig.yaml` above ) should contains following fields
  - `pub`: `pub` in the `root` parameter in `registry.route` call.
  - `fs`: `fs` in the `root` parameter in `registry.route` call.
  - `upstream`: upstream url for your backend server defined in your nginx config file. e.g., `backend_api`.
+ - `cached-period`: how long the nginx proxy cache should last. e.g., `10m`.
 
 
 ## Registry Provider Specification
