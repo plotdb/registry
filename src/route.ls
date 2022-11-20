@@ -1,7 +1,7 @@
 require! <[pthk lderror]>
 fs = require "fs-extra"
 
-handle = ({provider, id, root}) ->
+handle = ({provider, id, root, opt}) ->
   [paths, obj, id] = [{}, {}, pthk.rectify(id)]
   Promise.resolve!
     .then ->
@@ -22,18 +22,21 @@ handle = ({provider, id, root}) ->
         version: obj.version
         force: false
         cachetime: 60 * 60
-      }
+      } <<< opt
     .catch (e) ->
       if lderror.id(e) == 998 => return # skip fetching. as if fetch successfully.
       if lderror.id(e) != 404 => return Promise.reject e
       lderror.reject 404
 
-route = ({provider, root}) ->
+route = ({provider, root, opt}) ->
   if !root.pub.endsWith \/ => root.pub = "#{root.pub}/"
   (req, res) ->
     url = req.originalUrl
     id = url.replace(root.pub, '').replace(/[#?].*$/,'')
-    handle {provider, id, root}
+    _o = if !opt => {}
+    else if typeof(opt) == \function => opt(req, res)
+    else opt
+    handle {provider, id, root, opt: _o}
       .then ->
         res.set { "X-Accel-Redirect": pthk.join(root.internal, id) }
         res.send!

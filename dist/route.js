@@ -4,8 +4,8 @@
   lderror = require('lderror');
   fs = require("fs-extra");
   handle = function(arg$){
-    var provider, id, root, ref$, paths, obj;
-    provider = arg$.provider, id = arg$.id, root = arg$.root;
+    var provider, id, root, opt, ref$, paths, obj;
+    provider = arg$.provider, id = arg$.id, root = arg$.root, opt = arg$.opt;
     ref$ = [{}, {}, pthk.rectify(id)], paths = ref$[0], obj = ref$[1], id = ref$[2];
     return Promise.resolve().then(function(){
       var ids;
@@ -27,13 +27,13 @@
       if (!(obj.name && obj.version && obj.path)) {
         return lderror.reject(404);
       }
-      return provider.fetch({
+      return provider.fetch(import$({
         root: root.fs,
         name: obj.name,
         version: obj.version,
         force: false,
         cachetime: 60 * 60
-      });
+      }, opt));
     })['catch'](function(e){
       if (lderror.id(e) === 998) {
         return;
@@ -45,19 +45,23 @@
     });
   };
   route = function(arg$){
-    var provider, root;
-    provider = arg$.provider, root = arg$.root;
+    var provider, root, opt;
+    provider = arg$.provider, root = arg$.root, opt = arg$.opt;
     if (!root.pub.endsWith('/')) {
       root.pub = root.pub + "/";
     }
     return function(req, res){
-      var url, id;
+      var url, id, _o;
       url = req.originalUrl;
       id = url.replace(root.pub, '').replace(/[#?].*$/, '');
+      _o = !opt
+        ? {}
+        : typeof opt === 'function' ? opt(req, res) : opt;
       return handle({
         provider: provider,
         id: id,
-        root: root
+        root: root,
+        opt: _o
       }).then(function(){
         res.set({
           "X-Accel-Redirect": pthk.join(root.internal, id)
