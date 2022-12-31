@@ -48,7 +48,7 @@
       cachetime = cachetime || 60 * 60;
       versionType = getVersionType(version);
       if (!versionType) {
-        return lderror.reject(400);
+        return lderror.reject(400, "incorrect version-type when accessing " + name + "@" + version);
       }
       params = {
         path: path,
