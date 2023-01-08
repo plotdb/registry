@@ -1,5 +1,10 @@
 # Change Logs
 
+## v0.0.4
+
+ - skip 400 error, treat it as 404 and suppress error log for it.
+
+
 ## v0.0.3
 
  - add additional message when `version-type` can't be analyzed correctly

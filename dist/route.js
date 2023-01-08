@@ -68,7 +68,8 @@
         });
         return res.send();
       })['catch'](function(e){
-        if (lderror.id(e) !== 404) {
+        var ref$;
+        if (!((ref$ = lderror.id(e)) === 400 || ref$ === 404)) {
           console.log(e);
           res.status(500).send();
         }

@@ -41,7 +41,8 @@ route = ({provider, root, opt}) ->
         res.set { "X-Accel-Redirect": pthk.join(root.internal, id) }
         res.send!
       .catch (e) ->
-        if lderror.id(e) != 404 =>
+        # 404: for incorrect version parsing. usually from a incorrectly url
+        if !(lderror.id(e) in [400 404]) =>
           console.log e
           res.status 500 .send!
         res.status 404 .send!
