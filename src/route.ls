@@ -2,6 +2,7 @@ require! <[pthk lderror]>
 fs = require "fs-extra"
 
 handle = ({provider, id, root, opt}) ->
+  if !(id and ("#id".trim!)) => return lderror.reject 404
   [paths, obj, id] = [{}, {}, pthk.rectify(id)]
   Promise.resolve!
     .then ->

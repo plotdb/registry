@@ -6,6 +6,9 @@
   handle = function(arg$){
     var provider, id, root, opt, ref$, paths, obj;
     provider = arg$.provider, id = arg$.id, root = arg$.root, opt = arg$.opt;
+    if (!(id && (id + "").trim())) {
+      return lderror.reject(404);
+    }
     ref$ = [{}, {}, pthk.rectify(id)], paths = ref$[0], obj = ref$[1], id = ref$[2];
     return Promise.resolve().then(function(){
       var ids;

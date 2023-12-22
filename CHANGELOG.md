@@ -1,5 +1,10 @@
 # Change Logs
 
+## v0.0.5
+
+ - reject with 404 if id is empty.
+
+
 ## v0.0.4
 
  - skip 400 error, treat it as 404 and suppress error log for it.
