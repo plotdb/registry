@@ -1,5 +1,10 @@
 # Change Logs
 
+## v0.0.6 (upcoming)
+
+ - upgrade dependencies and remove unused `request` to suppress npm vulnerability report
+
+
 ## v0.0.5
 
  - reject with 404 if id is empty.
