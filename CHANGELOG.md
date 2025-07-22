@@ -1,6 +1,6 @@
 # Change Logs
 
-## v0.0.6 (upcoming)
+## v0.0.6
 
  - upgrade dependencies and remove unused `request` to suppress npm vulnerability report
 
