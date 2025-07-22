@@ -2,12 +2,13 @@ doctype html
 html
   head
     +css([
-      {name: "bootstrap", path: "css/bootstrap.min.css"}
+      {name: "bootstrap", path: "dist/css/bootstrap.min.css"}
     ])
   body
     +script([
       {name: "proxise"},
-      {name: "@loadingio/debounce.js", path: "debounce.min.js"},
+      {name: "@loadingio/debounce.js"},
+      {name: "@plotdb/semver"},
       {name: "@plotdb/csscope"},
       {name: "@plotdb/rescope"},
       {name: "@plotdb/block"}
