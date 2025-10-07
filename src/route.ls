@@ -8,7 +8,7 @@ handle = ({provider, id, root, opt}) ->
     .then ->
       if !/^[-_a-zA-Z0-9@./]+$/.exec(id) => return lderror.reject 404
       ids = id.split(\/)
-      obj <<< if ids.length > 3 =>
+      obj <<< if (ids.0 or '').0 == \@ =>
         name: "#{ids.0}/#{ids.1}"
         version: ids.2
         path: ids.slice(3).join(\/)

@@ -16,7 +16,7 @@
         return lderror.reject(404);
       }
       ids = id.split('/');
-      import$(obj, ids.length > 3
+      import$(obj, (ids[0] || '')[0] === '@'
         ? {
           name: ids[0] + "/" + ids[1],
           version: ids[2],

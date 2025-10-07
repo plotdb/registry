@@ -1,5 +1,10 @@
 # Change Logs
 
+## v0.0.7
+
+ - fix bug: incorrect id parsing in route which recognize path as part of version
+
+
 ## v0.0.6
 
  - upgrade dependencies and remove unused `request` to suppress npm vulnerability report
