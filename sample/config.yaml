@@ -1,7 +1,0 @@
-internal: ilib
-pub: lib
-root: /var/lib/cdn/cache/
-upstream: apiserver
-cache:
-  name: cache
-  period: 10m
