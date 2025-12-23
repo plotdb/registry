@@ -32,6 +32,8 @@ provider.prototype = Object.create(Object.prototype) <<<
     cachetime = cachetime or 60 * 60 # default 1hr
     version-type = get-version-type(version)
     if !version-type => return lderror.reject 400, "incorrect version-type when accessing #name@#version"
+    # simply not allowed bad / long name / version, even to prepare files.
+    if "#name".length > 128 or "#version".length > 40 => return lderror.reject 998
     params = {path, version-type, root, name, version, force, cachetime}
     if !/^(?:@[0-9a-z._-]+\/)?[0-9a-z._-]+$/.test(name) => return lderror.reject 400
     path.base.pkg = pthk.join(root, pthk.rectify name)
@@ -49,7 +51,9 @@ provider.prototype = Object.create(Object.prototype) <<<
             else @_fetch params
       p.catch (e) -> return if (id = lderror.id e) != 404 => Promise.reject e else _(idx + 1)
     _!catch (e) ->
-      if !((id = lderror.id(e)) in [403 404]) => return Promise.reject e
+      if !((id = lderror.id(e)) in [403 404 998]) => return Promise.reject e
+      # 998 skipped: don't even try adding 404 file.
+      if id in [998] => return lderror.reject 404
       fs.ensure-dir path.base.version
         .then -> fs.write-file path.404, ''
         .then -> return lderror.reject 404

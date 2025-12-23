@@ -1,5 +1,11 @@
 # Change Logs
 
+## v0.0.8
+
+ - prevent long package name (>128 chars) and long version (>40 chars)
+ - use lderror 998 for directly skip reg.404 preparation
+
+
 ## v0.0.7
 
  - fix bug: incorrect id parsing in route which recognize path as part of version

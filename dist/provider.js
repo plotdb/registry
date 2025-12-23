@@ -50,6 +50,9 @@
       if (!versionType) {
         return lderror.reject(400, "incorrect version-type when accessing " + name + "@" + version);
       }
+      if ((name + "").length > 128 || (version + "").length > 40) {
+        return lderror.reject(998);
+      }
       params = {
         path: path,
         versionType: versionType,
@@ -100,8 +103,11 @@
       };
       return _()['catch'](function(e){
         var id;
-        if (!((id = lderror.id(e)) === 403 || id === 404)) {
+        if (!((id = lderror.id(e)) === 403 || id === 404 || id === 998)) {
           return Promise.reject(e);
+        }
+        if (id === 998) {
+          return lderror.reject(404);
         }
         return fs.ensureDir(path.base.version).then(function(){
           return fs.writeFile(path[404], '');
