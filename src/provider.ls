@@ -51,6 +51,11 @@ provider.prototype = Object.create(Object.prototype) <<<
             else @_fetch params
       p.catch (e) -> return if (id = lderror.id e) != 404 => Promise.reject e else _(idx + 1)
     _!catch (e) ->
+      # we used to use 403 for packages that are not allowed.
+      # however, it still leads to reg.404 creation.
+      # to explicitly skip creation of file, we add 998 (skip) to prevent file creation
+      # we may want to analysis performance impact 
+      # since 404 files may go through here for every acces.
       if !((id = lderror.id(e)) in [403 404 998]) => return Promise.reject e
       # 998 skipped: don't even try adding 404 file.
       if id in [998] => return lderror.reject 404
