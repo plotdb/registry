@@ -4,6 +4,7 @@
 
  - prevent long package name (>128 chars) and long version (>40 chars)
  - use lderror 998 for directly skip reg.404 preparation
+ - upgrade dependencies
 
 
 ## v0.0.7
