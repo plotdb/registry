@@ -33,7 +33,7 @@ prepare a provider:
     myprovider = new registry do
       check: ({name, version, path}) ->
         if /@plotdb/.exec(name) => return Promise.resolve!
-        return lderror.reject 403
+        return lderror.reject 403 # or 998 (skipped) to prevent creating reg.404 file
     # chain a default jsdelivr provider
     myprovider.chain(registry.provider.jsdelivr);
 
@@ -120,7 +120,7 @@ A registry provider object should contain following fields:
 A provider provides following APIs:
 
  - `opt(opt)`: provide additional options for this provider.
-   - once provided, this can be accessed via `this._opt` internally.
+   - once provided, this can be accessed via `this.\_opt` internally.
  - `fetch(opt)`: download the indicated released packages and create a local copy at specified location.
    - `opt` is an object with following fields:
       - `root`: root directory for keeping cached files.
