@@ -54,7 +54,8 @@ provider.prototype = Object.create(Object.prototype) <<<
       # we used to use 403 for packages that are not allowed.
       # however, it still leads to reg.404 creation.
       # to explicitly skip creation of file, we add 998 (skip) to prevent file creation
-      # we may want to analysis performance impact 
+      # so we won't be flooded by malicious access in our local cache dir.
+      # we may want to analysis performance impact,
       # since 404 files may go through here for every acces.
       if !((id = lderror.id(e)) in [403 404 998]) => return Promise.reject e
       # 998 skipped: don't even try adding 404 file.
