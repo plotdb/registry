@@ -19,13 +19,16 @@
   },
   "scripts": {
     "start": "npx server -r web -o true",
-    "server": "cd web; ../node_modules/.bin/lsc server.ls"
+    "server": "cd web; ../node_modules/.bin/lsc server.ls",
+    "build": "lsc -c -o dist src/index.ls src/route.ls src/provider.ls src/unbox.ls src/ngxgen.ls && lsc -c -o dist/providers src/providers/index.ls src/providers/github.ls src/providers/npm.ls && cp src/config.ngx dist/config.ngx",
+    "test": "lsc test/index.ls"
   },
   "bin": {
     "registry-ngx": "./bin/ngxgen"
   },
   "dependencies": {
     "@plotdb/guides": "github:plotdb/guides#master",
+    "@plotdb/semver": "^0.0.4",
     "@zbryikt/template": "^2.4.2",
     "fs-extra": "^8.1.0",
     "js-yaml": "^4.1.1",
@@ -45,7 +48,6 @@
     "@plotdb/block": "^5.6.3",
     "@plotdb/csscope": "^5.0.4",
     "@plotdb/rescope": "^5.0.17",
-    "@plotdb/semver": "^0.0.3",
     "bootstrap": "^4.6.1",
     "bootstrap.native": "^3.0.14",
     "fedep": "^1.7.3",
