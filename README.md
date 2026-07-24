@@ -116,6 +116,11 @@ A registry provider object should contain following fields:
  - `fetchBundleFile(opt)`: fetch the given package and ectract it.
    - return a promise resolves when bundle file is extracted completely.
    - check `fetchRealVersion` for the definition of `opt`.
+ - `fetchVersionList({name})`: ( optional ) list available versions of a given package, for range resolving.
+   - return a promise resolves a list of version strings ( e.g., `["1.0.0", "1.1.0"]` ).
+   - github provider lists via `releases?per_page=100` ( most recent 100 releases only );
+     npm provider lists via registry metadata `versions` field.
+   - a provider without `fetchVersionList` is simply skipped when resolving a range.
 
 A provider provides following APIs:
 
@@ -129,6 +134,8 @@ A provider provides following APIs:
         - in `@plotdb/block` `main` is the locked version, however there is no locked version defined here,
           so `main` is equivalent to `latest`.
         - in github, tags is used for fetching release. tags should be in format `vx.y.z`. e.g., `v1.0.0`.
+        - range versions ( e.g. `^1.2.3` ) are rejected with 400: they should be resolved
+          to a specific version with `resolve()` first, so range dirs never land on disk.
       - `force`: default false. when true, ignore cache / 404 status and always try fetching package again.
       - `cachetime`: default 3600 seconds. cache for how long (in seconds) since the last fetch attempts.
     - return value: a Promise, resolves if package is found and downloaded. reject `e` in following situation:
@@ -139,6 +146,18 @@ A provider provides following APIs:
             if it's actually 404, nginx will then look up the file and report 404 after found not found.
           - the result will then cached by nginx and won't hit registry backend until cache expires.
       - otherwise, it's an internal exception and should be logged and tracked.
+ - `resolve(opt)`: resolve a range version ( `~x.y.z` / `^x.y.z`, also `>` / `>=` ) to the latest
+   specific version satisfying it, walking the provider chain like `fetch` does.
+   - `opt` takes `root` / `name` / `version` / `force` / `cachetime` as in `fetch`,
+     where `version` must be a range.
+   - version lists are cached per provider in `<pkg>/.reg.versions.<provider>`,
+     expired by mtime + `cachetime` like other cache files.
+   - return value: a Promise resolving the version string; rejects 400 for a non-range
+     version, 404 if no provider has a satisfying version.
+   - `registry.route` uses this to serve range urls: it responds a 302 redirect to the
+     specific version url ( `^` arrives url-encoded as `%5E`; `~` needs no encoding ),
+     so content urls stay immutable and the redirect ttl is governed by nginx
+     `proxy_cache_valid 302`.
  - `check({name, version})`: call the `check()` function provided in constructor.
  - `chain(providers)`: chain given `providers` in this provider.
    - `providers`: either another provider, or a list of other providers.

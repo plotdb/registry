@@ -1,10 +1,11 @@
 (function(){
-  var nodeFetch, lderror, yauzl, pthk, tar, fs, fetch, getVersionType, provider, ref$;
+  var nodeFetch, lderror, yauzl, pthk, tar, semver, fs, fetch, getVersionType, provider, ref$;
   nodeFetch = require('node-fetch');
   lderror = require('lderror');
   yauzl = require('yauzl');
   pthk = require('pthk');
   tar = require('tar');
+  semver = require('@plotdb/semver');
   fs = require("fs-extra");
   fetch = nodeFetch;
   getVersionType = function(v){
@@ -12,6 +13,8 @@
       return 'latest';
     } else if (/^\d+\.\d+\.\d+$/.test(v)) {
       return 'specific';
+    } else if (/^[~^>]/.test(v) && semver.validRange(v)) {
+      return 'range';
     } else {
       return null;
     }
@@ -22,6 +25,7 @@
     this._ps = [].concat(o.chain || []);
     this._fetchRealVersion = o.fetchRealVersion;
     this._fetchBundleFile = o.fetchBundleFile;
+    this._fetchVersionList = o.fetchVersionList;
     this._check = o.check;
     this._opt = o.opt || {};
     return this;
@@ -34,6 +38,7 @@
   provider.get = function(n){
     return this._hash[n];
   };
+  provider.versionType = getVersionType;
   provider.prototype = (ref$ = Object.create(Object.prototype), ref$.opt = function(o){
     return this._opt = o || {};
   }, ref$.fetch = function(o){
@@ -49,6 +54,9 @@
       versionType = getVersionType(version);
       if (!versionType) {
         return lderror.reject(400, "incorrect version-type when accessing " + name + "@" + version);
+      }
+      if (versionType === 'range') {
+        return lderror.reject(400, "range version should be resolved before fetch");
       }
       if ((name + "").length > 128 || (version + "").length > 40) {
         return lderror.reject(998);
@@ -131,6 +139,105 @@
     return this._ps.splice.apply(this._ps, [0, 0].concat(Array.isArray(ps)
       ? ps
       : [ps]));
+  }, ref$.resolve = function(o){
+    var this$ = this;
+    o == null && (o = {});
+    return Promise.resolve().then(function(){
+      var root, name, version, force, cachetime, base, list, _;
+      root = o.root, name = o.name, version = o.version, force = o.force, cachetime = o.cachetime;
+      cachetime = cachetime || 60 * 60;
+      if (getVersionType(version) !== 'range') {
+        return lderror.reject(400, "not a range version: " + name + "@" + version);
+      }
+      if ((name + "").length > 128 || (version + "").length > 40) {
+        return lderror.reject(404);
+      }
+      if (!/^(?:@[0-9a-z._-]+\/)?[0-9a-z._-]+$/.test(name)) {
+        return lderror.reject(400);
+      }
+      base = pthk.join(root, pthk.rectify(name));
+      list = function(pvd){
+        var file;
+        if (!pvd._fetchVersionList) {
+          return lderror.reject(404);
+        }
+        file = pthk.join(base, ".reg.versions." + pvd._name);
+        return Promise.resolve().then(function(){
+          if (force) {
+            return null;
+          }
+          return fs.exists(file).then(function(isExisted){
+            if (!isExisted) {
+              return null;
+            }
+            return fs.stat(file).then(function(s){
+              if (Date.now() > s.mtime.getTime() + cachetime * 1000) {
+                return null;
+              }
+              return fs.readFile(file).then(function(r){
+                return JSON.parse(r);
+              });
+            });
+          });
+        }).then(function(cached){
+          if (cached) {
+            return cached.versions;
+          }
+          return pvd._fetchVersionList({
+            name: name
+          })['catch'](function(e){
+            if (lderror.id(e) === 404) {
+              return [];
+            } else {
+              return Promise.reject(e);
+            }
+          }).then(function(vs){
+            return fs.ensureDir(base).then(function(){
+              return fs.writeFile(file, JSON.stringify({
+                versions: vs
+              }));
+            }).then(function(){
+              return vs;
+            });
+          });
+        });
+      };
+      _ = function(idx){
+        var pvd;
+        idx == null && (idx = -1);
+        pvd = idx < 0
+          ? this$
+          : this$._ps[idx];
+        if (!pvd) {
+          return lderror.reject(404);
+        }
+        return pvd.check({
+          name: name,
+          version: version
+        }).then(function(){
+          return list(pvd);
+        }).then(function(vs){
+          var v;
+          if (v = semver.maxSatisfying(vs, version)) {
+            return v;
+          }
+          return lderror.reject(404);
+        })['catch'](function(e){
+          if (lderror.id(e) !== 404) {
+            return Promise.reject(e);
+          } else {
+            return _(idx + 1);
+          }
+        });
+      };
+      return _()['catch'](function(e){
+        if (lderror.id(e) === 403) {
+          return lderror.reject(404);
+        } else {
+          return Promise.reject(e);
+        }
+      });
+    });
   }, ref$._fetch = function(params){
     var root, name, version, cachetime, force, path, versionType, this$ = this;
     root = params.root, name = params.name, version = params.version, cachetime = params.cachetime, force = params.force, path = params.path, versionType = params.versionType;

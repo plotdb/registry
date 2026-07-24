@@ -1,9 +1,10 @@
 (function(){
-  var nodeFetch, lderror, provider, unbox, getToken, pvd;
+  var nodeFetch, lderror, provider, unbox, semver, getToken, pvd;
   nodeFetch = require('node-fetch');
   lderror = require('lderror');
   provider = require('../provider');
   unbox = require('../unbox');
+  semver = require('@plotdb/semver');
   getToken = function(arg$){
     var name, opt, ret, scope, token;
     name = arg$.name, opt = arg$.opt;
@@ -15,6 +16,35 @@
   };
   pvd = new provider({
     name: 'github',
+    fetchVersionList: function(arg$){
+      var name, headers, token, jsonurl;
+      name = arg$.name;
+      headers = (token = getToken({
+        name: name,
+        opt: this._opt
+      }))
+        ? {
+          "Authorization": "token " + token
+        }
+        : {};
+      jsonurl = "https://api.github.com/repos/" + name.replace('@', '') + "/releases?per_page=100";
+      return nodeFetch(jsonurl, {
+        method: 'GET',
+        headers: headers
+      }).then(function(r){
+        if (r.status !== 200) {
+          return lderror.reject(404);
+        } else {
+          return r.json();
+        }
+      }).then(function(rs){
+        return rs.map(function(it){
+          return (it.tag_name + "").replace(/^v/, '');
+        }).filter(function(it){
+          return semver.valid(it);
+        });
+      });
+    },
     fetchRealVersion: function(arg$){
       var root, path, name, cachetime, version, versionType, force, headers, token, release, jsonurl;
       root = arg$.root, path = arg$.path, name = arg$.name, cachetime = arg$.cachetime, version = arg$.version, versionType = arg$.versionType, force = arg$.force;
