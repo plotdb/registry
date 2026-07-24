@@ -25,7 +25,8 @@
     "registry-ngx": "./bin/ngxgen"
   },
   "dependencies": {
-    "@zbryikt/template": "^2.4.1",
+    "@plotdb/guides": "github:plotdb/guides#master",
+    "@zbryikt/template": "^2.4.2",
     "fs-extra": "^8.1.0",
     "js-yaml": "^4.1.1",
     "lderror": "^2.4.6",
@@ -47,7 +48,7 @@
     "@plotdb/semver": "^0.0.3",
     "bootstrap": "^4.6.1",
     "bootstrap.native": "^3.0.14",
-    "fedep": "^1.6.0",
+    "fedep": "^1.7.3",
     "ldcover": "^3.5.6",
     "ldloader": "^3.0.3",
     "ldview": "^1.7.0",
