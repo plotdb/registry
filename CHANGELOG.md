@@ -22,6 +22,10 @@
      and drop the duplicate devDependencies entry
    - add `build` / `test` npm scripts; add stub-based tests covering range resolving,
      redirect routing, cache reuse and error codes ( `test/index.ls`, no network needed )
+   - upgrade `tar` 6 -> 7.5.21 for critical path-traversal / symlink-poisoning advisories
+     ( registry extracts remote tarballs into an nginx-served dir, so these matter here );
+     api usage ( `tar.x {strip, cwd}` ) is unchanged, but node >= 18 is now required
+     ( `engines` updated; was >= 10 )
 
 
 ## v0.0.8
