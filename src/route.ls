@@ -1,12 +1,14 @@
 require! <[pthk lderror]>
 fs = require "fs-extra"
+version-type = require(\./provider).version-type
 
 handle = ({provider, id, root, opt}) ->
   if !(id and ("#id".trim!)) => return lderror.reject 404
   [paths, obj, id] = [{}, {}, pthk.rectify(id)]
   Promise.resolve!
     .then ->
-      if !/^[-_a-zA-Z0-9@./]+$/.exec(id) => return lderror.reject 404
+      # `~^%` for range versions in url ( `^` comes encoded as `%5E` )
+      if !/^[-_a-zA-Z0-9@./~^%]+$/.exec(id) => return lderror.reject 404
       ids = id.split(\/)
       obj <<< if (ids.0 or '').0 == \@ =>
         name: "#{ids.0}/#{ids.1}"
@@ -17,6 +19,18 @@ handle = ({provider, id, root, opt}) ->
         version: ids.1
         path: ids.slice(2).join(\/)
       if !(obj.name and obj.version and obj.path) => return lderror.reject 404
+      try obj.version = decodeURIComponent(obj.version) catch => return lderror.reject 404
+      if version-type(obj.version) == \range =>
+        # range is resolved to a specific version and redirected ( instead of served directly )
+        # so content urls stay immutable and range dirs are never materialized on disk.
+        return provider.resolve {
+          root: root.fs
+          name: obj.name
+          version: obj.version
+          force: false
+          cachetime: 60 * 60
+        } <<< opt
+          .then (v) -> {redirect: pthk.join(root.pub, obj.name, v, obj.path)}
       provider.fetch {
         root: root.fs
         name: obj.name
@@ -38,14 +52,15 @@ route = ({provider, root, opt}) ->
     else if typeof(opt) == \function => opt(req, res)
     else opt
     handle {provider, id, root, opt: _o}
-      .then ->
+      .then (r) ->
+        if r and r.redirect => return res.redirect 302, r.redirect
         res.set { "X-Accel-Redirect": pthk.join(root.internal, id) }
         res.send!
       .catch (e) ->
-        # 404: for incorrect version parsing. usually from a incorrectly url
-        if !(lderror.id(e) in [400 404]) =>
-          console.log e
-          res.status 500 .send!
-        res.status 404 .send!
+        # 400: invalid range / version syntax. 404: not found / incorrect url.
+        code = lderror.id e
+        if code in [400 404] => return res.status code .send!
+        console.log e
+        res.status 500 .send!
 
 module.exports = route

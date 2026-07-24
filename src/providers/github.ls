@@ -1,4 +1,5 @@
 require! <[node-fetch lderror ../provider ../unbox]>
+require! <[@plotdb/semver]>
 
 get-token = ({name, opt}) ->
   ret = /^@([^/]+)\/(.+)$/.exec(name)
@@ -7,6 +8,15 @@ get-token = ({name, opt}) ->
 
 pvd = new provider do
   name: \github
+  # list released versions, for range resolving. only the most recent 100 releases
+  # are considered -- pagination is not followed to keep api usage low.
+  fetch-version-list: ({name}) ->
+    headers = if (token = get-token({name, opt: @_opt})) => {"Authorization": "token #{token}"} else {}
+    jsonurl = "https://api.github.com/repos/#{name.replace('@','')}/releases?per_page=100"
+    node-fetch jsonurl, {method: \GET, headers}
+      .then (r) -> if r.status != 200 => lderror.reject 404 else r.json!
+      .then (rs) -> rs.map(-> "#{it.tag_name}".replace(/^v/,'')).filter(-> semver.valid(it))
+
   fetch-real-version: ({root, path, name, cachetime, version, version-type, force}) ->
     headers = if (token = get-token({name, opt: @_opt})) => {"Authorization": "token #{token}"} else {}
     release = if version-type == \latest => "releases/latest" else "releases/tags/v#version"

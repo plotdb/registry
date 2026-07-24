@@ -36,8 +36,17 @@ location @registry_backend {
   proxy_set_header Host $http_host;
   proxy_set_header X-NginX-Proxy true;
   proxy_set_header X-Forwarded-Proto $scheme;
-  # cache 200 / 404 result for `cache-period` so user can't bombard our backend
+  # session middleware ( e.g. express-session ) sets cookie on every response,
+  # which by default prevents nginx from caching anything -- so we ignore it.
+  # `proxy_hide_header` is REQUIRED along with `proxy_ignore_headers`: without it
+  # a cached response would replay one user's session cookie to other users.
+  proxy_ignore_headers Set-Cookie;
+  proxy_hide_header Set-Cookie;
+  # cache 200 / 404 result for `cache-period` so user can't bombard our backend.
+  # 302 is the range-version redirect ( e.g. `^1.2.3` -> resolved specific version ):
+  # its cache period is effectively the ttl of range resolving.
+  # 400 is for invalid range / version syntax.
   proxy_cache !{cache.name};
-  proxy_cache_valid 200 404 !{cache.period};
+  proxy_cache_valid 200 302 400 404 !{cache.period};
   proxy_pass http://!{upstream};
 }

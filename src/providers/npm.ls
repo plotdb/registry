@@ -1,7 +1,14 @@
 require! <[node-fetch lderror ../provider ../unbox]>
+require! <[@plotdb/semver]>
 
 pvd = new provider do
-  name: \github
+  name: \npm
+  fetch-version-list: ({name}) ->
+    jsonurl = "https://registry.npmjs.org/#name"
+    node-fetch jsonurl, {method: \GET}
+      .then (r) -> if r.status != 200 => lderror.reject 404 else r.json!
+      .then (r) -> Object.keys(r.versions or {}).filter(-> semver.valid(it))
+
   fetch-real-version: ({root, path, name, cachetime, version, version-type, force, opt}) ->
     jsonurl = "https://registry.npmjs.org/#name"
     node-fetch jsonurl, {method: \GET}

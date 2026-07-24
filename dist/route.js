@@ -1,8 +1,9 @@
 (function(){
-  var pthk, lderror, fs, handle, route;
+  var pthk, lderror, fs, versionType, handle, route;
   pthk = require('pthk');
   lderror = require('lderror');
   fs = require("fs-extra");
+  versionType = require('./provider').versionType;
   handle = function(arg$){
     var provider, id, root, opt, ref$, paths, obj;
     provider = arg$.provider, id = arg$.id, root = arg$.root, opt = arg$.opt;
@@ -11,8 +12,8 @@
     }
     ref$ = [{}, {}, pthk.rectify(id)], paths = ref$[0], obj = ref$[1], id = ref$[2];
     return Promise.resolve().then(function(){
-      var ids;
-      if (!/^[-_a-zA-Z0-9@./]+$/.exec(id)) {
+      var ids, e;
+      if (!/^[-_a-zA-Z0-9@./~^%]+$/.exec(id)) {
         return lderror.reject(404);
       }
       ids = id.split('/');
@@ -29,6 +30,25 @@
         });
       if (!(obj.name && obj.version && obj.path)) {
         return lderror.reject(404);
+      }
+      try {
+        obj.version = decodeURIComponent(obj.version);
+      } catch (e$) {
+        e = e$;
+        return lderror.reject(404);
+      }
+      if (versionType(obj.version) === 'range') {
+        return provider.resolve(import$({
+          root: root.fs,
+          name: obj.name,
+          version: obj.version,
+          force: false,
+          cachetime: 60 * 60
+        }, opt)).then(function(v){
+          return {
+            redirect: pthk.join(root.pub, obj.name, v, obj.path)
+          };
+        });
       }
       return provider.fetch(import$({
         root: root.fs,
@@ -65,18 +85,22 @@
         id: id,
         root: root,
         opt: _o
-      }).then(function(){
+      }).then(function(r){
+        if (r && r.redirect) {
+          return res.redirect(302, r.redirect);
+        }
         res.set({
           "X-Accel-Redirect": pthk.join(root.internal, id)
         });
         return res.send();
       })['catch'](function(e){
-        var ref$;
-        if (!((ref$ = lderror.id(e)) === 400 || ref$ === 404)) {
-          console.log(e);
-          res.status(500).send();
+        var code;
+        code = lderror.id(e);
+        if (code === 400 || code === 404) {
+          return res.status(code).send();
         }
-        return res.status(404).send();
+        console.log(e);
+        return res.status(500).send();
       });
     };
   };

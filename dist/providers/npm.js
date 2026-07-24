@@ -1,11 +1,30 @@
 (function(){
-  var nodeFetch, lderror, provider, unbox, pvd;
+  var nodeFetch, lderror, provider, unbox, semver, pvd;
   nodeFetch = require('node-fetch');
   lderror = require('lderror');
   provider = require('../provider');
   unbox = require('../unbox');
+  semver = require('@plotdb/semver');
   pvd = new provider({
-    name: 'github',
+    name: 'npm',
+    fetchVersionList: function(arg$){
+      var name, jsonurl;
+      name = arg$.name;
+      jsonurl = "https://registry.npmjs.org/" + name;
+      return nodeFetch(jsonurl, {
+        method: 'GET'
+      }).then(function(r){
+        if (r.status !== 200) {
+          return lderror.reject(404);
+        } else {
+          return r.json();
+        }
+      }).then(function(r){
+        return Object.keys(r.versions || {}).filter(function(it){
+          return semver.valid(it);
+        });
+      });
+    },
     fetchRealVersion: function(arg$){
       var root, path, name, cachetime, version, versionType, force, opt, jsonurl;
       root = arg$.root, path = arg$.path, name = arg$.name, cachetime = arg$.cachetime, version = arg$.version, versionType = arg$.versionType, force = arg$.force, opt = arg$.opt;

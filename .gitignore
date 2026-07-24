@@ -5,3 +5,4 @@ src/config.lson
 web/static/assets/lib
 backlog
 secret.*
+test/.cache
