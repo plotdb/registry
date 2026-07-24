@@ -1,6 +1,6 @@
 # Change Logs
 
-## v0.0.9 (upcoming)
+## v0.0.9
 
  - features:
    - support semver range version ( `~x.y.z` / `^x.y.z`, `^` comes url-encoded as `%5E` ):
