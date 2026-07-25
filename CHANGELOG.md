@@ -1,6 +1,6 @@
 # Change Logs
 
-## master
+## v0.0.10
 
  - features:
    - split `main` / `latest` semantics ( previously aliases ):
