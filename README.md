@@ -75,6 +75,92 @@ where the config file ( `myconfig.yaml` above ) should contains following fields
 Check `sample/config.ngx` and `sample/config.yaml` for a reference of nginx config file and corresponding config yaml.
 
 
+### Admin Routes
+
+Two admin operations are expected, mounted under a guarded prefix
+( recommended naming: `/staff/registry/<operation>/` ):
+
+    # flush: force re-fetch. for `main`, this re-designates to the upstream latest.
+    app.get("/staff/registry/flush/*", isAdmin, registry.route({
+      provider: myprovider,
+      opt: function() { return {force: true}; },
+      root: {pub: "/staff/registry/flush/", fs: "...", internal: "/ilib/"}
+    }));
+
+    # designate: pin `main` of a package to a chosen version.
+    # url format: <name>/<version>; trailing path segments are ignored,
+    # so a public asset url can be pasted with only the prefix swapped.
+    app.get("/staff/registry/designate/*", isAdmin, registry.designate({
+      provider: myprovider,
+      root: {pub: "/staff/registry/designate/", fs: "..."}
+    }));
+
+
+## Caching Model
+
+Four cache layers are involved when serving a package file. From the client inward:
+
+ 1. **browser cache**: keyed by full URL including query string.
+ 2. **nginx `proxy_cache`**: caches backend responses ( 200 / 302 / 400 / 404, for `cache.period` ).
+    the default `proxy_cache_key` includes `$request_uri`, **query string included**.
+ 3. **nginx `try_files` ( disk )**: files materialized under `fs` root are served directly;
+    matching is done on `$uri`, **query string excluded**. requests never reach the backend
+    once the file exists on disk.
+ 4. **registry backend internal caches**: version-list cache ( `.reg.versions.<provider>` ),
+    negative cache ( `.reg.404` ) and `main` staleness check, all expired by
+    file mtime + `cachetime`. the backend strips query strings entirely.
+
+How each version type travels through these layers:
+
+ - **specific version** ( `1.2.3` ): immutable by definition. the first request falls through
+   to the backend, which downloads and unpacks the package, then replies with
+   `X-Accel-Redirect`; every later request is served from disk by `try_files` ( layer 3 )
+   without touching the backend. this is correct exactly because the content never changes.
+ - **range version** ( `~1.2.3` / `^1.2.3`, `^` arrives url-encoded as `%5E` ): never
+   materialized on disk, so `try_files` always misses and the request reaches the backend,
+   which 302-redirects to the resolved specific version. effective staleness bound for
+   seeing a newly released version = `cache.period` ( layer 2, caches the 302 )
+   + `cachetime` ( layer 4, caches the version list ).
+ - **`latest`**: always tracks the upstream newest ( github latest release / npm dist-tag
+   `latest` -- the keyword follows the npm dist-tag convention ). handled exactly like a
+   range: never on disk, 302-redirected, same staleness bound.
+ - **`main`**: the admin-designated version, kept as a **symlink** pointing at a specific
+   version dir, served from disk by layer 3 ( no redirect hop ). frozen semantics: nothing
+   updates `main` automatically -- not on requests, not on upstream releases. it changes only
+   through a `force` fetch ( re-designate to upstream latest, e.g. an admin flush route ),
+   an explicit `designate` call ( pin to a chosen version ), or manual placement:
+   a real ( non-symlink ) dir at `main` is treated as preinstalled and never touched by
+   normal requests; a manual symlink ( e.g. pointing at a dev working copy ) likewise
+   survives everything except an explicit force / designate, and even then only the link
+   is replaced -- its target is never deleted. first touch of a package with nothing at
+   `main` auto-designates to the upstream latest at that moment.
+
+Query-string cache busting ( e.g. a `cachestamp` param ) therefore only goes so deep:
+it always busts layer 1 and layer 2 ( new query = new cache key, the request reaches the
+backend ), but never layer 3 ( disk files, including `main` ) nor layer 4 ( backend TTLs ).
+a bumped cachestamp on a range URL yields a fresh 302, but the resolved version may still
+come from the version-list cache until `cachetime` expires.
+
+Some deliberate choices worth knowing before changing them:
+
+ - **the 302 carries no cache headers on purpose.** browsers do not cache a redirect
+   without freshness info ( heuristic caching needs `Last-Modified`, which we do not send ),
+   so clients re-request the range URL every time, while nginx still absorbs the load via
+   `proxy_cache_valid`. do NOT add `Cache-Control: no-cache` to make browser behavior
+   "explicit": upstream `Cache-Control` overrides `proxy_cache_valid`, which would disable
+   the nginx 302 cache as well ( unless you also add `proxy_ignore_headers Cache-Control` ).
+ - **`Set-Cookie` must be ignored and hidden in the backend proxy location.** session
+   middleware sets a cookie on every response, which by default prevents nginx from caching
+   anything at all. the generated config includes `proxy_ignore_headers Set-Cookie` +
+   `proxy_hide_header Set-Cookie`; the latter is required, otherwise a cached response
+   would replay one user's session cookie to other users.
+ - **range resolution follows chain order, not the union of providers.** the first provider
+   with any satisfying version wins ( consistent with how `fetch` falls through on 404 ).
+   if a package has github releases, github is the source of truth for ranges: a newer
+   version published only to npm stays invisible. keep github releases and npm publishes
+   in sync for packages available on both.
+
+
 ## Registry Provider Specification
 
 Registry providers are used to access a requested resource which is defined by its `namespace`, `name`, `version`, `path` and optionally `type`.
@@ -130,12 +216,13 @@ A provider provides following APIs:
    - `opt` is an object with following fields:
       - `root`: root directory for keeping cached files.
       - `name`: package name. scope is possible, such as `@plotdb/block`.
-      - `version`: package version. should always in semver format (e.g., `1.0.0`) or one of `latest` or `main`.
-        - in `@plotdb/block` `main` is the locked version, however there is no locked version defined here,
-          so `main` is equivalent to `latest`.
+      - `version`: package version. should always in semver format (e.g., `1.0.0`) or `main`.
+        - `main` is the designated ( locked ) version: frozen once set, updated only by
+          `force` ( re-designate to upstream latest ) or `designate()`. see "Caching Model".
         - in github, tags is used for fetching release. tags should be in format `vx.y.z`. e.g., `v1.0.0`.
-        - range versions ( e.g. `^1.2.3` ) are rejected with 400: they should be resolved
-          to a specific version with `resolve()` first, so range dirs never land on disk.
+        - range ( e.g. `^1.2.3` ) and `latest` versions are rejected with 400: they should be
+          resolved to a specific version with `resolve()` / `resolveLatest()` first,
+          so their dirs never land on disk.
       - `force`: default false. when true, ignore cache / 404 status and always try fetching package again.
       - `cachetime`: default 3600 seconds. cache for how long (in seconds) since the last fetch attempts.
     - return value: a Promise, resolves if package is found and downloaded. reject `e` in following situation:
@@ -158,6 +245,16 @@ A provider provides following APIs:
      specific version url ( `^` arrives url-encoded as `%5E`; `~` needs no encoding ),
      so content urls stay immutable and the redirect ttl is governed by nginx
      `proxy_cache_valid 302`.
+ - `resolveLatest(opt)`: resolve what `latest` currently means ( github latest release /
+   npm dist-tag ), walking the provider chain. results are cached per provider in
+   `<pkg>/.reg.latest.<provider>` with `cachetime` expiry. `registry.route` uses this
+   to serve `latest` urls as a 302 redirect, same as ranges.
+ - `designate(opt)`: point `main` at a specific version.
+   - `opt`: `root` / `name` / `version` ( must be specific ) / `cachetime`.
+   - ensures the version is cached ( via the provider chain ), then atomically repoints
+     the `main` symlink ( relative link, tmp + rename ). a real dir at `main`
+     ( preinstalled / legacy ) is replaced only here; a symlink's target is never deleted.
+   - return value: a Promise resolving `{name, version}`.
  - `check({name, version})`: call the `check()` function provided in constructor.
  - `chain(providers)`: chain given `providers` in this provider.
    - `providers`: either another provider, or a list of other providers.
