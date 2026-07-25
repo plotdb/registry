@@ -4,7 +4,10 @@ fs = require "fs-extra"
 
 fetch = node-fetch
 get-version-type = (v) ->
-  if v in <[latest main]> => \latest
+  # `main` = admin-designated version ( frozen until force / designate ).
+  # `latest` = always tracking upstream newest ( redirect-resolved, like range ).
+  if v == \main => \main
+  else if v == \latest => \latest
   else if /^\d+\.\d+\.\d+$/.test(v) => \specific
   else if /^[~^>]/.test(v) and semver.valid-range(v) => \range
   else null
@@ -35,9 +38,10 @@ provider.prototype = Object.create(Object.prototype) <<<
     cachetime = cachetime or 60 * 60 # default 1hr
     version-type = get-version-type(version)
     if !version-type => return lderror.reject 400, "incorrect version-type when accessing #name@#version"
-    # range should be resolved (see `resolve`) and redirected to a specific version before fetch,
-    # so range directories are never materialized on disk (nginx would serve them stale forever).
-    if version-type == \range => return lderror.reject 400, "range version should be resolved before fetch"
+    # range / latest should be resolved (see `resolve` / `resolve-latest`) and redirected to a
+    # specific version before fetch, so their directories are never materialized on disk
+    # (nginx would serve them stale forever).
+    if version-type in <[range latest]> => return lderror.reject 400, "#version-type version should be resolved before fetch"
     # simply not allowed bad / long name / version, even to prepare files.
     if "#name".length > 128 or "#version".length > 40 => return lderror.reject 998
     params = {path, version-type, root, name, version, force, cachetime}
@@ -46,6 +50,7 @@ provider.prototype = Object.create(Object.prototype) <<<
     path.base.version = pthk.join(path.base.pkg, version)
     path.version = pthk.join(path.base.version, '.reg.version')
     path.404 = pthk.join(path.base.version, '.reg.404')
+    if version-type == \main => return @_fetch-main params
     _ = (idx = -1) ~>
       if idx >= 0 =>
         if !(pr = @_ps[idx]) => return lderror.reject 404
@@ -72,6 +77,80 @@ provider.prototype = Object.create(Object.prototype) <<<
 
   check: ({name, version}) -> if @_check => @_check {name, version} else Promise.resolve!
   chain: (ps) -> @_ps.splice.apply @_ps, ([0, 0] ++ (if Array.isArray(ps) => ps else [ps]))
+
+  # `main` is an admin-designated version, kept as a symlink pointing at a specific version dir.
+  # frozen semantics: whatever exists at `main` ( our symlink, a manual dev symlink, or a
+  # preinstalled real dir ) is left untouched unless forced. force = re-designate to upstream
+  # latest. first touch ( nothing at `main` yet ) auto-designates to latest.
+  _fetch-main: ({root, name, version, force, cachetime, path}) ->
+    Promise.resolve!
+      .then -> fs.lstat path.base.version .catch -> null
+      .then (s) ~>
+        if s and !force => return lderror.reject 998
+        @resolve-latest {root, name, cachetime, force}
+          .then (v) ~> @designate {root, name, version: v, cachetime}
+
+  # resolve what `latest` currently means, walking the provider chain like `fetch` does.
+  # results are cached per provider in `<pkg>/.reg.latest.<provider>` with cachetime expiry.
+  resolve-latest: (o = {}) ->
+    <~ Promise.resolve!then _
+    {root, name, force, cachetime} = o
+    cachetime = cachetime or 60 * 60
+    if "#name".length > 128 => return lderror.reject 404
+    if !/^(?:@[0-9a-z._-]+\/)?[0-9a-z._-]+$/.test(name) => return lderror.reject 400
+    base = pthk.join(root, pthk.rectify name)
+    peek = (pvd) ->
+      if !pvd._fetch-real-version => return lderror.reject 404
+      file = pthk.join(base, ".reg.latest.#{pvd._name}")
+      Promise.resolve!
+        .then ->
+          if force => return null
+          fs.exists file .then (is-existed) ->
+            if !is-existed => return null
+            (s) <- fs.stat file .then _
+            if Date.now! > s.mtime.getTime! + cachetime * 1000 => return null
+            fs.read-file file .then (r) -> JSON.parse(r)
+        .then (cached) ->
+          if cached => return cached.version
+          pvd._fetch-real-version {root, name, cachetime, version: \latest, version-type: \latest}
+            .then (info) ->
+              fs.ensure-dir base
+                .then -> fs.write-file file, JSON.stringify({version: info.version})
+                .then -> info.version
+    _ = (idx = -1) ~>
+      pvd = if idx < 0 => @ else @_ps[idx]
+      if !pvd => return lderror.reject 404
+      pvd.check {name, version: \latest}
+        .then -> peek pvd
+        .catch (e) -> if lderror.id(e) != 404 => Promise.reject e else _(idx + 1)
+    _!catch (e) -> if lderror.id(e) == 403 => lderror.reject 404 else Promise.reject e
+
+  # point `main` at a specific version: ensure the version is cached ( via the provider
+  # chain ), then atomically repoint the `main` symlink ( relative, tmp + rename ).
+  # a real dir at `main` ( preinstalled / legacy ) is only replaced here.
+  # `fs.remove` on a symlink removes the link itself -- a manual symlink's target
+  # ( e.g. a dev repo ) is never deleted.
+  designate: (o = {}) ->
+    <~ Promise.resolve!then _
+    {root, name, version, cachetime} = o
+    if get-version-type(version) != \specific => return lderror.reject 400, "designate requires a specific version"
+    if "#name".length > 128 or "#version".length > 40 => return lderror.reject 404
+    if !/^(?:@[0-9a-z._-]+\/)?[0-9a-z._-]+$/.test(name) => return lderror.reject 400
+    base = pthk.join(root, pthk.rectify name)
+    [main-path, tmp] = [pthk.join(base, \main), pthk.join(base, ".main.#{process.pid}.tmp")]
+    Promise.resolve!
+      .then ~>
+        (is-existed) <~ fs.exists pthk.join(base, version, \.reg.version) .then _
+        if is-existed => return
+        @fetch {root, name, version, force: false, cachetime}
+      .then -> fs.lstat main-path .catch -> null
+      .then (s) ->
+        Promise.resolve!
+          .then -> if s and !s.isSymbolicLink! => fs.remove main-path
+          .then -> fs.remove tmp
+          .then -> fs.symlink version, tmp
+          .then -> fs.rename tmp, main-path
+      .then -> {name, version}
 
   # resolve a range version (e.g. `^1.2.3`) to the latest specific version satisfying it,
   # walking the provider chain like `fetch` does. version lists are cached per provider
@@ -133,32 +212,14 @@ provider.prototype = Object.create(Object.prototype) <<<
                 # not existed, 404 - dirty if cache expires
                 dirty = Date.now! > s.mtime.getTime! + cachetime * 1000
                 return if !dirty => false else fs.remove path.404 .then -> true
-            # specific version existed. never dirty
-            if version-type == \specific => return false
-            # latest - dirty if cache expires.
-            if version-type == \latest =>
-              return fs.stat path.version .then (s) ->
-                Date.now! > s.mtime.getTime! + cachetime * 1000
-            # TODO range version
+            # specific version existed. never dirty.
+            # ( only specific versions reach here -- main / latest / range are handled upstream )
             return false
           .then (is-dirty) -> if !is-dirty => return lderror.reject 998
       .then ~>
-        # 2. in this block, we peek real version for latest / range(TODO) version
+        # 2. in this block, we confirm the real version info of the specific version.
         (remote-info) <~ @_fetch-real-version params .then _
         Promise.resolve!
-          .then ->
-            if force or version-type == \specific => return remote-info
-            # compare remote version with local version
-            fs.exists path.version .then (is-existed) ->
-              # no local version -> must fetch
-              if !is-existed => return
-              (r) <- fs.read-file path.version .then _
-              # local is older -> must fetch
-              if remote-info.version > JSON.parse(r).version => return
-              # no new version. skip fetch. touch version file for reset cache counter
-              now = new Date!
-              fs.utimes path.version, now, now
-              lderror.reject 998
           .then ->
             fs.remove path.base.version
             #fs.remove path.404

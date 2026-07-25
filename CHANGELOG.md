@@ -1,5 +1,34 @@
 # Change Logs
 
+## master
+
+ - features:
+   - split `main` / `latest` semantics ( previously aliases ):
+     - `latest` always tracks the upstream newest ( npm dist-tag convention ) and is
+       302-redirect-resolved like ranges -- never materialized on disk. resolution cached
+       per provider in `<pkg>/.reg.latest.<provider>` with cachetime expiry.
+     - `main` is the admin-designated version: a symlink pointing at a specific version
+       dir, served from disk with no redirect hop. frozen until an admin decision --
+       `force` fetch re-designates to upstream latest ( existing flush routes keep working
+       unchanged ), `designate` pins a chosen version. first touch auto-designates to
+       the latest at that moment.
+   - add `provider.designate` and a `registry.designate` admin route factory
+     ( recommended mount: `/staff/registry/designate/*`, aligned with
+     `/staff/registry/flush/*` ).
+   - protect manually-placed `main`: a preinstalled real dir or a manual symlink
+     ( e.g. pointing at a dev working copy ) is never touched by normal requests, and a
+     symlink's target is never deleted -- force / designate only replaces the link itself.
+ - tweaks:
+   - `main` / `latest` no longer create `.reg.404` marker files; negative results are
+     absorbed by the nginx proxy cache instead.
+   - dev ( no-nginx ) behavior of `main` now matches production: frozen, no TTL refetch.
+ - doc:
+   - add "Caching Model" section in README: cache layers, version-type behaviors,
+     query-string ( cachestamp ) reach, and deliberate choices ( headerless 302,
+     Set-Cookie handling, chain-order resolution ). all claims verified against
+     a local nginx + backend setup.
+
+
 ## v0.0.9
 
  - features:

@@ -1,6 +1,6 @@
 # Task: main 版本的 revalidation 機制
 
-（2026-07-24 從 semver range task 分出來，暫不實作）
+（2026-07-24 從 semver range task 分出來；**2026-07-25 以語意重定義解決，見文末**）
 
 ## 問題
 
@@ -37,3 +37,22 @@ revalidate 有必要，但應由 server / admin 側負責，registry 提供工�
 
  - semver range task（`context/project/semver.md`）：range 採 302 redirect、
    不落地目錄，所以 range **沒有**這個問題；本 task 只涉及 `main` / `latest`。
+
+## 結論（2026-07-25，與 tkirby 定案並實作）
+
+「main 該自動 revalidate」的前提被推翻：main 的原始語意是**系統/admin 指定版本**
+（`@plotdb/block` 的 locked version 概念），凍結才是正確行為——production 的
+「落地後不再更新」從 bug 變成 spec。自動追新的需求由 `latest` 承接。實作：
+
+ - `main` / `latest` 語意拆開（原本互為別名）：
+   - `latest`：追上游最新（npm dist-tag 慣例），比照 range 走 302、不落地。
+   - `main`：symlink 指向精確版本目錄、磁碟直出零 redirect hop。凍結；
+     只被 force flush（重新指向上游最新）、`designate`（指定版本）、
+     或手動佈署（預裝實體目錄 / dev symlink，registry 不碰）改變。
+ - 新增 `provider.designate` + `registry.designate` route factory；
+   admin route naming 定為 `/staff/registry/flush/*` 與 `/staff/registry/designate/*`
+   （grantdash / makechart 既有 `/staff/flush/assets/lib/*` 掛法不改也能運作，
+   force flush main = 自動更新到最新，與現有 Library Cache Flush UI 相容）。
+ - cron sweep（方案 1）與 main 改 302（方案 3）皆不需要了。
+ - 遺留 nice-to-have（backlog）：outdated report 工具——列出各套件 main
+   指向版本 vs 上游最新，供 admin 決定要不要 flush / designate。

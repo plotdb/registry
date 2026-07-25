@@ -1,2 +1,2 @@
-require! <[./route ./provider ./providers]>
-module.exports = {route, provider, providers}
+require! <[./route ./provider ./providers ./designate]>
+module.exports = {route, provider, providers, designate}

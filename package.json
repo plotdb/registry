@@ -20,7 +20,7 @@
   "scripts": {
     "start": "npx server -r web -o true",
     "server": "cd web; ../node_modules/.bin/lsc server.ls",
-    "build": "lsc -c -o dist src/index.ls src/route.ls src/provider.ls src/unbox.ls src/ngxgen.ls && lsc -c -o dist/providers src/providers/index.ls src/providers/github.ls src/providers/npm.ls && cp src/config.ngx dist/config.ngx",
+    "build": "lsc -c -o dist src/index.ls src/route.ls src/provider.ls src/designate.ls src/unbox.ls src/ngxgen.ls && lsc -c -o dist/providers src/providers/index.ls src/providers/github.ls src/providers/npm.ls && cp src/config.ngx dist/config.ngx",
     "test": "lsc test/index.ls"
   },
   "bin": {

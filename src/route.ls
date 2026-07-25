@@ -20,17 +20,25 @@ handle = ({provider, id, root, opt}) ->
         path: ids.slice(2).join(\/)
       if !(obj.name and obj.version and obj.path) => return lderror.reject 404
       try obj.version = decodeURIComponent(obj.version) catch => return lderror.reject 404
-      if version-type(obj.version) == \range =>
-        # range is resolved to a specific version and redirected ( instead of served directly )
-        # so content urls stay immutable and range dirs are never materialized on disk.
-        return provider.resolve {
-          root: root.fs
-          name: obj.name
-          version: obj.version
-          force: false
-          cachetime: 60 * 60
-        } <<< opt
-          .then (v) -> {redirect: pthk.join(root.pub, obj.name, v, obj.path)}
+      if (vt = version-type(obj.version)) in <[range latest]> =>
+        # range / latest are resolved to a specific version and redirected ( instead of served
+        # directly ) so content urls stay immutable and their dirs are never materialized on disk.
+        p = if vt == \range =>
+          provider.resolve {
+            root: root.fs
+            name: obj.name
+            version: obj.version
+            force: false
+            cachetime: 60 * 60
+          } <<< opt
+        else
+          provider.resolve-latest {
+            root: root.fs
+            name: obj.name
+            force: false
+            cachetime: 60 * 60
+          } <<< opt
+        return p.then (v) -> {redirect: pthk.join(root.pub, obj.name, v, obj.path)}
       provider.fetch {
         root: root.fs
         name: obj.name
