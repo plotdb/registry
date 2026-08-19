@@ -1,5 +1,17 @@
 # Change Logs
 
+## v0.0.11
+
+ - bug fix:
+   - ngx config: the `internal` location ( target of `X-Accel-Redirect` ) was missing the
+     `pub` prefix in its `index.min.js` fallback -- it resolved to `<root>/<pkg>/index.min.js`
+     instead of `<root>/<pub>/<pkg>/index.min.js`, so that fallback never matched. a package
+     whose entry is only `index.min.js` ( no `index.js` / `index.html` ) 404'd on the request
+     that triggered the fetch, then succeeded on the next one ( served by the `pub` location,
+     whose fallback was already correct ) -- an intermittent first-hit 404. the two locations
+     now use the same three fallbacks.
+
+
 ## v0.0.10
 
  - features:
