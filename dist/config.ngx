@@ -9,7 +9,7 @@
 location ~ ^/!{internal}/(.*)$ {
   internal;
   root !{root};
-  try_files /!{pub}/$1 /!{pub}/$1/index.html /$1/index.min.js =404;
+  try_files /!{pub}/$1 /!{pub}/$1/index.html /!{pub}/$1/index.min.js =404;
 }
 
 location ~ ^/!{pub}/(.*)$ {
