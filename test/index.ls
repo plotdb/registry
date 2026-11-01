@@ -172,6 +172,23 @@ Promise.resolve!
   .then -> desig '/staff/registry/designate/lpkg/9.9.9' .then ->
     eq "designate unknown version responds 404", it.status, 404
 
+  # ---- fs root check ( on route creation ) ----
+  .then ->
+    eq "check-root: writable root", reg.route.check-root(root), true
+    ro = "#{__dirname}/.cache-ro"
+    fs.remove-sync ro
+    fs.ensure-dir-sync ro
+    fs.chmod-sync ro, 8~555
+    [warn, warned] = [console.warn, false]
+    console.warn = -> warned := true
+    r = reg.route.check-root "#ro/sub"
+    console.warn = warn
+    fs.chmod-sync ro, 8~755
+    fs.remove-sync ro
+    # root can write anywhere, so the unwritable case only applies to non-root users.
+    if process.getuid?! != 0 =>
+      eq "check-root: unwritable root reports false and warns", [r, warned], [false, true]
+
   .then ->
     console.log if failed => "\n#failed test(s) FAILED" else "\nall tests passed"
     process.exit if failed => 1 else 0

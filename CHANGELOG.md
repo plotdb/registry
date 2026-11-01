@@ -1,5 +1,15 @@
 # Change Logs
 
+## master
+
+ - tweaks:
+   - check `root.fs` once when `registry.route` / `registry.designate` is created ( i.e., on
+     server start ): create it if missing and verify it is writable. on failure, warn with a
+     fix command instead of failing on the first fetch with an opaque 500
+     ( e.g. `EACCES: permission denied, mkdir '/var/lib/cdn'` when `/var/lib/cdn` is not
+     prepared ). only warns, so a broken registry root does not keep the server from starting.
+
+
 ## v0.0.11
 
  - bug fix:

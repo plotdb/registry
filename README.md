@@ -47,6 +47,16 @@ add a route:
         internal: "/ilib"         # internal redirect URL from server to nginx.
     });
 
+`fs` must be writable by the server user. it is checked when the route is created ( a warning
+with a fix command is printed if not ). the conventional location is `/var/lib/cdn/cache`; since
+`/var/lib` is root-only, prepare it beforehand, e.g. with systemd-tmpfiles:
+
+    echo 'd /var/lib/cdn/cache 0755 <server-user> <server-user> -' | sudo tee /etc/tmpfiles.d/registry-cdn.conf
+    sudo systemd-tmpfiles --create /etc/tmpfiles.d/registry-cdn.conf
+
+note that `fs` is not a pure cache: `main` symlinks record admin designation ( see Caching Model ),
+so keep it across deploys instead of treating it as disposable.
+
 generate customied nginx config:
 
     npx registry-nginx -c myconfig.yaml > reg.ngx

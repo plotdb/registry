@@ -51,8 +51,30 @@ handle = ({provider, id, root, opt}) ->
       if lderror.id(e) != 404 => return Promise.reject e
       lderror.reject 404
 
+# check `root.fs` once when a route is created ( i.e., on server start ), so a missing or
+# unwritable cache dir ( e.g. `/var/lib/cdn` not prepared, `/var/lib` is root-only ) is
+# reported up front instead of as a 500 on the first fetch. only warns: a broken registry
+# route should not keep the whole server from starting. returns whether `dir` is writable.
+checked = {}
+check-root = (dir) ->
+  if !dir => return false
+  if checked[dir]? => return checked[dir]
+  checked[dir] = try
+    fs.ensure-dir-sync dir
+    fs.access-sync dir, fs.constants.W_OK
+    true
+  catch e
+    user = try require(\os).user-info!.username catch => \<server-user>
+    console.warn """
+    [@plotdb/registry] fs root `#dir` is not writable ( #{e.code or e.message} ).
+    fetching packages will fail with 500 until it is fixed, e.g.:
+        sudo mkdir -p #dir && sudo chown #user #dir
+    """
+    false
+
 route = ({provider, root, opt}) ->
   if !root.pub.endsWith \/ => root.pub = "#{root.pub}/"
+  check-root root.fs
   (req, res) ->
     url = req.originalUrl
     id = url.replace(root.pub, '').replace(/[#?].*$/,'')
@@ -71,4 +93,5 @@ route = ({provider, root, opt}) ->
         console.log e
         res.status 500 .send!
 
+route.check-root = check-root
 module.exports = route

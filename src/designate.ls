@@ -1,4 +1,5 @@
 require! <[pthk lderror]>
+check-root = require(\./route).check-root
 
 # admin route for designating `main` of a package to a specific version.
 # expected to be mounted like ( naming aligned with the flush route ):
@@ -12,6 +13,7 @@ require! <[pthk lderror]>
 # so a public asset url can be pasted with only the prefix swapped.
 designate = ({provider, root, opt}) ->
   if !root.pub.endsWith \/ => root.pub = "#{root.pub}/"
+  check-root root.fs
   (req, res) ->
     url = req.originalUrl
     id = pthk.rectify(url.replace(root.pub, '').replace(/[#?].*$/,''))
