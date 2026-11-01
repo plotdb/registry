@@ -1,6 +1,6 @@
 # Change Logs
 
-## master
+## v0.0.12
 
  - tweaks:
    - check `root.fs` once when `registry.route` / `registry.designate` is created ( i.e., on
