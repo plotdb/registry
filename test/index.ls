@@ -190,6 +190,13 @@ Promise.resolve!
       eq "check-root: unwritable root reports false and warns", [r, warned], [false, true]
 
   .then ->
+    # fedep >= 1.8 release tags: `dist/vX.Y.Z` is the release, `src/vX.Y.Z` the source commit
+    tv = require("../src/providers/github.ls").tag-version
+    eq "github tag-version: bare / dist / src / junk",
+      <[v1.2.3 1.2.3 dist/v1.2.3 src/v1.2.3 dist/latest]>.map(tv),
+      ["1.2.3", "1.2.3", "1.2.3", null, null]
+
+  .then ->
     console.log if failed => "\n#failed test(s) FAILED" else "\nall tests passed"
     process.exit if failed => 1 else 0
   .catch (e) ->

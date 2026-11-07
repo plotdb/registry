@@ -1,5 +1,16 @@
 # Change Logs
 
+## v0.0.13
+
+ - bug fix:
+   - github provider: read versions from `dist/vX.Y.Z` release tags as well. fedep >= 1.8
+     ( `publish -g` ) cuts the release on `dist/vX.Y.Z` - the bare `vX.Y.Z` it also pushes is a
+     tag without a release, invisible to the releases api - so `latest` resolved to the invalid
+     version `dist/v0.0.3` ( 400 ), an exact version 404'd and range lists dropped those releases.
+     `src/vX.Y.Z` ( the source commit ) is never taken as a version. an exact version tries
+     `vX.Y.Z` first, then `dist/vX.Y.Z`.
+
+
 ## v0.0.12
 
  - tweaks:
