@@ -29,13 +29,37 @@ First, include `@plotdb/registry`:
 
 prepare a provider:
 
-    # our own provider, only fetch modules in @plotdb scope
+    # our own provider, only fetch modules in the @plotdb scope
     myprovider = new registry do
-      check: ({name, version, path}) ->
-        if /@plotdb/.exec(name) => return Promise.resolve!
-        return lderror.reject 403 # or 998 (skipped) to prevent creating reg.404 file
+      scopes: ["@plotdb"]
     # chain a default jsdelivr provider
     myprovider.chain(registry.provider.jsdelivr);
+
+`scopes` is the recommended gate: scopes are compared for equality, so lookalike
+scopes cannot slip through. **do not** hand-roll this with a regex -- an unanchored
+one is a hole:
+
+    check: ({name}) -> if /@plotdb/.exec(name) => ...   # WRONG
+
+that accepts `@plotdbx/foo` ( prefix not terminated ) and `@evil/plotdb-ish`
+( not anchored at the start ), which is enough to get an arbitrary package from the
+chained upstream served under your own domain. if you must write it by hand, anchor
+both ends of the scope, including the `/`: `^@plotdb/`. for several scopes:
+`^(?:@plotdb|@makeform)/`.
+
+`check` is still available for rules `scopes` cannot express, and receives the parsed
+`scope` / `pkg` so it never has to parse the name itself:
+
+    myprovider = new registry do
+      scopes: ["@plotdb", "@makeform"]
+      check: ({scope, pkg, name, version}) ->
+        if scope == \@makeform and pkg.startsWith(\private-) => return lderror.reject 403
+        Promise.resolve!
+
+a provider used as a route's entry point with neither `scopes` nor `check` serves
+everything reachable through its chain ( e.g. all of npm ) from your own origin;
+`registry.route` / `registry.designate` print a warning when they are given one.
+pass `open: true` to the provider if that is intended.
 
 add a route:
 
@@ -183,8 +207,19 @@ A registry provider can be either following format:
 A registry provider object should contain following fields:
 
  - `name`: provider name
- - `check({name, version})`: access control for the given package `{name, version}`.
-   - when omitted, no check will be done.
+ - `scopes`: ( optional ) a list of allowed package scopes, e.g. `["@plotdb"]`.
+   - `@plotdb`, `plotdb` and `@plotdb/` are all accepted and normalized to `@plotdb`.
+   - matched before `check`, by equality: a name whose scope is not listed ( including
+     any unscoped name ) is rejected with 998 ( skip ), so probing random scopes does
+     not leave `.reg.404` files behind in the cache dir.
+ - `open`: ( optional ) when true, declares that serving anything reachable through the
+   chain is intended, and silences the "no gate" warning from `registry.route`.
+ - `check({name, version, scope, pkg})`: access control for the given package.
+   - `scope` / `pkg` are the parsed halves of `name` ( `scope` is null for an unscoped
+     name ), so scope comparison needs no regex. prefer `scopes` for plain scope
+     allowlisting.
+   - when both `scopes` and `check` are omitted, no check will be done -- everything the
+     chain can reach is served.
    - return:
      - if the given package is not allowed:
        - a Promise rejects with `{id: 403, name: 'lderror'}` (or, `lderror.reject(403)`)
@@ -265,7 +300,9 @@ A provider provides following APIs:
      the `main` symlink ( relative link, tmp + rename ). a real dir at `main`
      ( preinstalled / legacy ) is replaced only here; a symlink's target is never deleted.
    - return value: a Promise resolving `{name, version}`.
- - `check({name, version})`: call the `check()` function provided in constructor.
+ - `check({name, version})`: apply the access control gate: `scopes` first, then the
+   `check()` function provided in constructor ( which also receives `scope` / `pkg` ).
+ - `hasGate()`: whether this provider gates access at all ( `scopes`, `check` or `open` ).
  - `chain(providers)`: chain given `providers` in this provider.
    - `providers`: either another provider, or a list of other providers.
    - chained providers will be called if current provider return 404.

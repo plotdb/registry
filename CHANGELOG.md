@@ -1,5 +1,37 @@
 # Change Logs
 
+## v0.0.14
+
+ - features:
+   - provider `scopes` option: a list of allowed package scopes ( e.g. `["@plotdb"]` ),
+     matched before `check` and compared for equality, so no caller has to get a regex
+     right. a hand written gate is easy to get wrong in a way that opens the whole
+     upstream: an unanchored `/@plotdb/` also accepts `@plotdbx/foo` ( prefix not
+     terminated ) and `@evil/plotdb-ish` ( not anchored ), which is enough to get an
+     arbitrary npm package served under our own domain. a name whose scope is not listed
+     is rejected with 998 ( skip ), so probing random scopes leaves no `.reg.404` files
+     behind. README's example used the unanchored form - it now uses `scopes`, and spells
+     out `^@plotdb/` for the cases that still need a regex.
+   - `check` now also receives the parsed `scope` / `pkg` next to `name` / `version`.
+   - `registry.route` / `registry.designate` warn once per provider when their entry
+     provider has neither `scopes` nor `check`: everything reachable through its chain
+     ( e.g. all of npm ) is then served from this origin. `open: true` on the provider
+     declares that as intended and silences it.
+ - bug fix:
+   - the `X-Accel-Redirect` uri was built from the raw request url, while everything else
+     used the rectified one. nginx unescapes that header but does not collapse dot
+     segments, so a percent-encoded `..%2f` ( or a double-encoded `%252e%252e%252f` ) that
+     survived nginx's own uri normalization would have made the internal redirect read
+     files outside the cache root. it is now built from the parsed `name` / `version` /
+     `path`, and a path that decodes to anything containing a `..` segment ( or a nul
+     byte ) is rejected with 404.
+   - `designate` applies the provider's gate itself: a version already on disk takes the
+     no-fetch path, which used to repoint `main` without any `check`.
+ - tweaks:
+   - a version coming back from a provider ( npm `dist-tags.latest`, a custom provider's
+     version list ) reaches a redirect url and fs paths, so it is now accepted only if it
+     is a plain specific version.
+
 ## v0.0.13
 
  - bug fix:
