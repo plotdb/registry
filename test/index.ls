@@ -46,8 +46,15 @@ lp = new reg.provider do
     count.lp.bundle++
     fs.ensure-dir path.base.version
       .then -> fs.write-file "#{path.base.version}/index.min.js", "content #{remote-info.version}"
-custom2 = new reg.provider {name: \custom2}
+# `open: true`: deliberately ungated, so route creation does not warn ( see check-gate test ).
+custom2 = new reg.provider {name: \custom2, open: true}
 custom2.chain [lp]
+
+# scope-gated provider: only `@plotdb/*` passes, by equality - not by regex.
+scoped = new reg.provider do
+  name: \scoped
+  scopes: <[@plotdb plotdb2 @plotdb3/]>   # all three forms normalize to `@plotdbN`
+scoped.chain [p2]
 
 mk-call = (r) -> (url) -> new Promise (done) ->
   res =
@@ -171,6 +178,58 @@ Promise.resolve!
     eq "designate invalid version responds 400", it.status, 400
   .then -> desig '/staff/registry/designate/lpkg/9.9.9' .then ->
     eq "designate unknown version responds 404", it.status, 404
+
+  # ---- X-Accel-Redirect is built from validated parts ----
+  .then -> call2 '/assets/lib/npkg/1.0.0/a/b.js' .then ->
+    eq "accel uri from parsed parts", it.headers['X-Accel-Redirect'], '/ilib/npkg/1.0.0/a/b.js'
+  .then -> call2 '/assets/lib/lpkg/1.2.3/..%2F..%2Fetc/passwd' .then ->
+    # nginx unescapes X-Accel-Redirect without collapsing dot segments
+    eq "encoded traversal in path responds 404", it.status, 404
+  .then -> call2 '/assets/lib/lpkg/1.2.3/%252e%252e%252f%252e%252e%252fetc/passwd' .then ->
+    eq "double-encoded traversal in path responds 404", it.status, 404
+  .then -> call2 '/assets/lib/mpkg/1.0.0/a/../b.js' .then ->
+    eq "literal traversal normalized away", it.headers['X-Accel-Redirect'], '/ilib/mpkg/1.0.0/b.js'
+
+  # ---- scope gate ----
+  .then ->
+    eq "parse-name: scoped / unscoped",
+      [reg.provider.parse-name('@plotdb/block'), reg.provider.parse-name('block')],
+      [{scope: '@plotdb', pkg: 'block'}, {scope: null, pkg: 'block'}]
+  .then -> scoped.resolve {root, name: '@plotdb/pkg', version: \^1.2.0} .then ->
+    eq "scopes: allowed scope resolves", it, "1.4.0"
+  .then ->
+    eq "scopes: normalized forms", scoped._scopes, <[@plotdb @plotdb2 @plotdb3]>
+  .then -> code-of scoped.resolve {root, name: '@plotdbx/pkg', version: \^1.2.0} .then ->
+    # the bug this guards: an unanchored `/@plotdb/` regex would accept this name
+    eq "scopes: lookalike scope rejected", it, 998
+  .then -> code-of scoped.resolve {root, name: '@evil/plotdb-ish', version: \^1.2.0} .then ->
+    eq "scopes: scope-in-pkg-name rejected", it, 998
+  .then -> code-of scoped.resolve {root, name: 'pkg', version: \^1.2.0} .then ->
+    eq "scopes: unscoped name rejected", it, 998
+  .then -> code-of scoped.fetch {root, name: '@plotdbx/pkg', version: \1.2.3} .then ->
+    eq "scopes: rejected fetch responds 404", it, 404
+  .then ->
+    eq "scopes: rejected name leaves nothing on disk", fs.exists-sync("#root/@plotdbx"), false
+  .then -> code-of scoped.designate {root, name: '@plotdbx/pkg', version: \1.2.3} .then ->
+    eq "scopes: designate gated", it, 404
+  .then ->
+    # check receives the parsed scope / pkg
+    seen = null
+    pv = new reg.provider {name: \seen, check: (o) -> seen := o; Promise.resolve!}
+    code-of pv.resolve {root, name: '@plotdb/block', version: \^1.0.0} .then ->
+      eq "check receives scope / pkg", [seen.scope, seen.pkg, seen.name], ['@plotdb', 'block', '@plotdb/block']
+
+  # ---- gate warning ( on route creation ) ----
+  .then ->
+    [warn, msgs] = [console.warn, []]
+    console.warn = -> msgs.push it
+    ungated = new reg.provider {name: \ungated}
+    g1 = reg.route.check-gate ungated, \test
+    g2 = reg.route.check-gate ungated, \test      # warns once per provider
+    g3 = reg.route.check-gate scoped, \test
+    g4 = reg.route.check-gate custom2, \test       # open: true
+    console.warn = warn
+    eq "check-gate: ungated warns once, gated / open silent", [g1, g2, g3, g4, msgs.length], [false, false, true, true, 1]
 
   # ---- fs root check ( on route creation ) ----
   .then ->

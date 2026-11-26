@@ -1,5 +1,5 @@
 require! <[pthk lderror]>
-check-root = require(\./route).check-root
+{check-root, check-gate} = require(\./route)
 
 # admin route for designating `main` of a package to a specific version.
 # expected to be mounted like ( naming aligned with the flush route ):
@@ -14,6 +14,7 @@ check-root = require(\./route).check-root
 designate = ({provider, root, opt}) ->
   if !root.pub.endsWith \/ => root.pub = "#{root.pub}/"
   check-root root.fs
+  check-gate provider, \registry.designate
   (req, res) ->
     url = req.originalUrl
     id = pthk.rectify(url.replace(root.pub, '').replace(/[#?].*$/,''))

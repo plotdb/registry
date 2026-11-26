@@ -12,6 +12,19 @@ get-version-type = (v) ->
   else if /^[~^>]/.test(v) and semver.valid-range(v) => \range
   else null
 
+# package names are either `<pkg>` or `@<scope>/<pkg>`. parsing the two halves here lets
+# `check` compare the scope by equality, instead of leaving every user to write their own
+# regex: an unanchored `/@plotdb/` also accepts `@plotdbx/foo` and `@evil/plotdb-ish`, which
+# is enough to get an arbitrary npm package served from the host's own origin.
+parse-name = (name) ->
+  if (m = /^@([0-9a-z._-]+)\/([0-9a-z._-]+)$/.exec("#name")) => {scope: "@#{m.1}", pkg: m.2}
+  else {scope: null, pkg: "#name"}
+
+# accept `@plotdb`, `plotdb` or `@plotdb/` in the `scopes` option; compare as `@plotdb`.
+normalize-scopes = (scopes) ->
+  (if Array.isArray(scopes) => scopes else [scopes])
+    .map (s) -> "#s".replace(/^@?/, \@).replace(/\/+$/, '')
+
 provider = (o = {}) ->
   @_name = o.name or "unnamed#{provider._idx++}"
   @_ps = [] ++ (o.chain or [])
@@ -19,6 +32,8 @@ provider = (o = {}) ->
   @_fetch-bundle-file = o.fetch-bundle-file
   @_fetch-version-list = o.fetch-version-list
   @_check = o.check
+  @_scopes = if o.scopes? => normalize-scopes o.scopes else null
+  @_open = !!o.open
   @_opt = o.opt or {}
   @
 
@@ -28,6 +43,7 @@ provider <<<
   add: (p) -> @_hash[p._name] = p
   get: (n) -> @_hash[n]
   version-type: get-version-type
+  parse-name: parse-name
 
 provider.prototype = Object.create(Object.prototype) <<<
   opt: (o) -> @_opt = o or {}
@@ -75,7 +91,22 @@ provider.prototype = Object.create(Object.prototype) <<<
         .then -> fs.write-file path.404, ''
         .then -> return lderror.reject 404
 
-  check: ({name, version}) -> if @_check => @_check {name, version} else Promise.resolve!
+  # access control gate, called before anything is fetched from upstream or written to `fs`.
+  # `scopes` ( if given ) is matched first: only those scopes pass, compared for equality,
+  # so no caller has to get a regex right. a user supplied `check` then receives the parsed
+  # `scope` / `pkg` along with `name` / `version` for finer rules.
+  check: ({name, version}) ->
+    {scope, pkg} = parse-name name
+    if @_scopes and !(scope in @_scopes) =>
+      # 998 ( skip ) rather than 403: a name we never serve should not leave a `.reg.404`
+      # marker behind, or a scanner probing random scopes floods the cache dir.
+      return lderror.reject 998
+    if @_check => @_check {name, version, scope, pkg} else Promise.resolve!
+
+  # whether this provider gates access at all. a provider used as a route's entry point
+  # without a gate serves everything its chain can reach ( e.g. all of npm ) from our own
+  # origin; `open: true` marks that as deliberate. see `registry.route`'s warning.
+  has-gate: -> !!(@_scopes or @_check or @_open)
   chain: (ps) -> @_ps.splice.apply @_ps, ([0, 0] ++ (if Array.isArray(ps) => ps else [ps]))
 
   # `main` is an admin-designated version, kept as a symlink pointing at a specific version dir.
@@ -114,6 +145,9 @@ provider.prototype = Object.create(Object.prototype) <<<
           if cached => return cached.version
           pvd._fetch-real-version {root, name, cachetime, version: \latest, version-type: \latest}
             .then (info) ->
+              # remote data ( e.g. npm `dist-tags.latest` ) ends up in a redirect url and
+              # in fs paths: only take it if it is a plain specific version.
+              if get-version-type(info?.version) != \specific => return lderror.reject 404
               fs.ensure-dir base
                 .then -> fs.write-file file, JSON.stringify({version: info.version})
                 .then -> info.version
@@ -139,6 +173,10 @@ provider.prototype = Object.create(Object.prototype) <<<
     base = pthk.join(root, pthk.rectify name)
     [main-path, tmp] = [pthk.join(base, \main), pthk.join(base, ".main.#{process.pid}.tmp")]
     Promise.resolve!
+      # gate here too: a version already on disk takes the no-fetch path below, which would
+      # otherwise repoint `main` for a package this provider is not allowed to serve.
+      .then ~> @check({name, version}).catch (e) ->
+        if lderror.id(e) in [403 998] => lderror.reject 404 else Promise.reject e
       .then ~>
         (is-existed) <~ fs.exists pthk.join(base, version, \.reg.version) .then _
         if is-existed => return
@@ -190,7 +228,9 @@ provider.prototype = Object.create(Object.prototype) <<<
       pvd.check {name, version}
         .then -> list pvd
         .then (vs) ->
-          if (v = semver.max-satisfying(vs, version)) => return v
+          # same here: a provider's version list is remote data and reaches a redirect url.
+          if (v = semver.max-satisfying(vs, version)) =>
+            return if get-version-type(v) == \specific => v else lderror.reject 404
           lderror.reject 404
         .catch (e) -> if lderror.id(e) != 404 => Promise.reject e else _(idx + 1)
     _!catch (e) -> if lderror.id(e) == 403 => lderror.reject 404 else Promise.reject e

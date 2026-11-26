@@ -2,9 +2,27 @@ require! <[pthk lderror]>
 fs = require "fs-extra"
 version-type = require(\./provider).version-type
 
+# a path is only safe to hand to nginx if it cannot climb out of the cache root once nginx
+# unescapes it. nginx unescapes the `X-Accel-Redirect` value but does not collapse dot
+# segments, so `..%2f` ( or a double-encoded `%252e%252e%252f` ) left in the uri would make
+# the internal redirect read files outside the root. decode until stable, then refuse any
+# `..` segment or nul byte.
+safe-path = (p) ->
+  [prev, cur] = ['', "#{p or ''}"]
+  for til 4
+    if cur == prev => break
+    prev = cur
+    try cur = decodeURIComponent(cur) catch => return false
+  if cur != prev => return false   # still encoded after 4 rounds: nothing legitimate is
+  if /\0/.test(cur) => return false
+  (cur.split /[\/\\]/).every (seg) -> seg != '..'
+
 handle = ({provider, id, root, opt}) ->
   if !(id and ("#id".trim!)) => return lderror.reject 404
   [paths, obj, id] = [{}, {}, pthk.rectify(id)]
+  # built from the parsed / validated `name`, `version` and `path` -- never from the raw
+  # url, whose dot segments and encodings nginx would resolve on our behalf ( see safe-path ).
+  accel = -> pthk.join(root.internal, obj.name, "#{obj.version}", obj.path)
   Promise.resolve!
     .then ->
       # `~^%` for range versions in url ( `^` comes encoded as `%5E` )
@@ -20,6 +38,7 @@ handle = ({provider, id, root, opt}) ->
         path: ids.slice(2).join(\/)
       if !(obj.name and obj.version and obj.path) => return lderror.reject 404
       try obj.version = decodeURIComponent(obj.version) catch => return lderror.reject 404
+      if !safe-path obj.path => return lderror.reject 404
       if (vt = version-type(obj.version)) in <[range latest]> =>
         # range / latest are resolved to a specific version and redirected ( instead of served
         # directly ) so content urls stay immutable and their dirs are never materialized on disk.
@@ -46,8 +65,10 @@ handle = ({provider, id, root, opt}) ->
         force: false
         cachetime: 60 * 60
       } <<< opt
+    .then (r) -> if r and r.redirect => r else {accel: accel!}
     .catch (e) ->
-      if lderror.id(e) == 998 => return # skip fetching. as if fetch successfully.
+      # 998 = skip fetching. as if fetch successfully.
+      if lderror.id(e) == 998 => return {accel: accel!}
       if lderror.id(e) != 404 => return Promise.reject e
       lderror.reject 404
 
@@ -72,9 +93,27 @@ check-root = (dir) ->
     """
     false
 
+# warn once per provider when a route's entry provider has no access-control gate: every
+# package its chain can reach ( e.g. all of npm ) is then served from this origin, under
+# our own domain. `open: true` on the provider says that is intended and silences this.
+gated = {}
+check-gate = (provider, where) ->
+  if !provider or typeof(provider.has-gate) != \function => return true
+  if provider.has-gate! => return true
+  if gated[name = provider._name] => return false
+  gated[name] = true
+  console.warn """
+  [@plotdb/registry] provider `#name` used by #where has no `scopes` / `check`:
+  every package reachable through its chain is served from this origin. restrict it, e.g.:
+      myprovider = new registry.provider {scopes: ['@plotdb'], chain: [...]}
+  pass `open: true` to the provider if serving anything is intended.
+  """
+  false
+
 route = ({provider, root, opt}) ->
   if !root.pub.endsWith \/ => root.pub = "#{root.pub}/"
   check-root root.fs
+  check-gate provider, \registry.route
   (req, res) ->
     url = req.originalUrl
     id = url.replace(root.pub, '').replace(/[#?].*$/,'')
@@ -84,7 +123,7 @@ route = ({provider, root, opt}) ->
     handle {provider, id, root, opt: _o}
       .then (r) ->
         if r and r.redirect => return res.redirect 302, r.redirect
-        res.set { "X-Accel-Redirect": pthk.join(root.internal, id) }
+        res.set { "X-Accel-Redirect": r.accel }
         res.send!
       .catch (e) ->
         # 400: invalid range / version syntax. 404: not found / incorrect url.
@@ -94,4 +133,5 @@ route = ({provider, root, opt}) ->
         res.status 500 .send!
 
 route.check-root = check-root
+route.check-gate = check-gate
 module.exports = route
